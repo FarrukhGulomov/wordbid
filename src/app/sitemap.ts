@@ -2,7 +2,10 @@ import type { MetadataRoute } from 'next';
 import { prisma } from '@/lib/db';
 import { config } from '@/lib/config';
 
-export const revalidate = 3600;
+// This queries the database, which is unreachable from the isolated container most hosts
+// (Railway, Vercel, ...) build in — force-dynamic skips static generation at build time and
+// renders this on request instead, which also keeps it correctly up to date at all times.
+export const dynamic = 'force-dynamic';
 
 /** Every owned word gets an indexable page — that is the SEO surface of the product. */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
