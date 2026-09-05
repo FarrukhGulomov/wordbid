@@ -26,7 +26,7 @@ export const config = {
   },
   /** Repeat clicks by the same visitor on the same ownership inside this window are not counted. */
   get clickDedupeWindowMs(): number {
-    return intFromEnv('CLICK_DEDUPE_WINDOW_MINUTES', 30) * 60 * 1000;
+    return intFromEnv('CLICK_DEDUPE_WINDOW_SECONDS', 1800) * 1000;
   },
   get siteUrl(): string {
     return process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';

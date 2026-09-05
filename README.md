@@ -95,7 +95,7 @@ npm run build      # production build
 | `STARTING_PRICE_CENTS` | no | `1000` | Price of an unclaimed word ($10) |
 | `TAKEOVER_INCREMENT_PERCENT` | no | `5` | Minimum premium to take an owned word |
 | `MAX_AMOUNT_CENTS` | no | `10000000` | Ceiling on a single claim ($100,000) |
-| `CLICK_DEDUPE_WINDOW_MINUTES` | no | `30` | Repeat clicks by one visitor inside this window are not counted |
+| `CLICK_DEDUPE_WINDOW_SECONDS` | no | `1800` | Repeat clicks by one visitor inside this window are not counted |
 
 ### Connecting Stripe
 
