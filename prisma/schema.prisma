@@ -40,9 +40,12 @@ model Word {
   currentOwnership   Ownership? @relation("CurrentOwnership", fields: [currentOwnershipId], references: [id])
   /// When the current ownership was confirmed. Deterministic tie-break for equal values.
   ownedSince         DateTime?
-  /// Lifetime sum of valid clicks across every ownership this word has ever had.
-  /// Internal only — never shown publicly. Public surfaces show the CURRENT owner's
-  /// clicks instead, which is Ownership.clickCount on the active ownership.
+  /// Lifetime sum of valid clicks across every ownership this word has ever had. Shown
+  /// publicly ONLY as an aggregate, word-level "attention" figure (e.g. Most Clicked Words on
+  /// the stats page) — never as a specific owner's performance. Any per-owner display (the
+  /// leaderboard row, the word page) must use Ownership.clickCount on the active ownership,
+  /// which resets to 0 on takeover. Mixing the two up is the exact bug this codebase already
+  /// shipped once; see tests/click-attribution.test.ts.
   clickCount         Int        @default(0)
   /// Moderation: hidden from every public surface, cannot be claimed.
   blocked            Boolean    @default(false)
@@ -164,4 +167,32 @@ model Activity {
   createdAt         DateTime     @default(now())
 
   @@index([createdAt])
+}
+
+/// One row per unique real visitor, identified by a long-lived cookie. No personal data — just
+/// a random id, so we can honestly count "how many distinct people have visited" and "how many
+/// are here right now". A bot (see looksLikeBot) is never given one, and none is created until
+/// a real browser executes the heartbeat's JavaScript, which most crawlers never do either.
+model Visitor {
+  id          String   @id
+  firstSeenAt DateTime @default(now())
+  /// Updated on every heartbeat. "Online" = lastSeenAt within the last 5 minutes.
+  lastSeenAt  DateTime @default(now())
+
+  hourly VisitorHourly[]
+
+  @@index([lastSeenAt])
+}
+
+/// One row per (visitor, hour) present — the fact "this visitor was active during this hour" —
+/// used to draw the 24-hour visitor chart without logging every individual heartbeat.
+model VisitorHourly {
+  id         String   @id @default(cuid())
+  visitorId  String
+  visitor    Visitor  @relation(fields: [visitorId], references: [id])
+  /// The UTC hour this activity falls in, truncated to the top of the hour.
+  hourBucket DateTime
+
+  @@unique([visitorId, hourBucket])
+  @@index([hourBucket])
 }

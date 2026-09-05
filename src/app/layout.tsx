@@ -2,6 +2,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import './globals.css';
 import { config, SITE_NAME } from '@/lib/config';
+import { getOnlineCount, getTotalVisitors } from '@/lib/attention';
+import { formatCount } from '@/lib/money';
+import { VisitorHeartbeat } from '@/components/VisitorHeartbeat';
 
 export const metadata: Metadata = {
   metadataBase: new URL(config.siteUrl),
@@ -20,21 +23,36 @@ export const metadata: Metadata = {
   twitter: { card: 'summary_large_image' },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Real numbers only — see src/lib/attention.ts. Fetched here so every page carries the same
+  // proof line; this is also why every page in this app renders dynamically.
+  const [online, visitors] = await Promise.all([getOnlineCount(), getTotalVisitors()]);
+
   return (
     <html lang="en">
       <body className="min-h-screen">
+        <VisitorHeartbeat />
+
         <header className="border-b border-line">
-          <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-4 py-4">
-            <Link href="/" className="font-mono text-sm font-bold tracking-tight">
-              👑 {SITE_NAME}
-            </Link>
-            <Link
-              href="/claim"
-              className="rounded bg-gold px-3 py-1.5 font-mono text-xs font-bold text-ink transition hover:opacity-85"
-            >
-              CLAIM A WORD
-            </Link>
+          <div className="mx-auto max-w-3xl px-4 py-4">
+            <div className="flex items-center justify-between gap-4">
+              <Link href="/" className="font-mono text-sm font-bold tracking-tight">
+                👑 {SITE_NAME}
+              </Link>
+              <Link
+                href="/claim"
+                className="rounded bg-gold px-3 py-1.5 font-mono text-xs font-bold text-ink transition hover:opacity-85"
+              >
+                CLAIM A WORD
+              </Link>
+            </div>
+            <p className="tnum mt-1.5 font-mono text-xs text-muted">
+              <span className="text-live">🟢</span> {formatCount(online)} online ·{' '}
+              {formatCount(visitors)} visitors ·{' '}
+              <Link href="/stats" className="text-muted underline underline-offset-2 hover:text-text">
+                STATS →
+              </Link>
+            </p>
           </div>
         </header>
 

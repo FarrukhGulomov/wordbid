@@ -6,7 +6,8 @@ export const db = new PrismaClient();
 /** Empties every table between tests. Order respects foreign keys. */
 export async function resetDb() {
   await db.$executeRawUnsafe(
-    'TRUNCATE "Click", "Activity", "WebhookEvent", "Word", "Ownership", "Payment", "Owner" RESTART IDENTITY CASCADE',
+    'TRUNCATE "Click", "Activity", "WebhookEvent", "Word", "Ownership", "Payment", "Owner", ' +
+      '"VisitorHourly", "Visitor" RESTART IDENTITY CASCADE',
   );
 }
 

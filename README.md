@@ -130,8 +130,38 @@ jobs). See **Refunds** below for what it does and why it exists.
 `/admin` shows revenue, confirmed payments, claimed words, paid placements, takeovers, repeat
 buyers, valid outbound clicks and average ownership value — all computed from real rows.
 
-Visitors, claim conversion and referral traffic are **not** shown, because they need a web
-analytics tool. Add one (Plausible, Fathom, GA) to `src/app/layout.tsx` if you want them.
+## Public attention proof
+
+Every page's header shows `🟢 N online · N visitors · STATS →`, and `/stats` expands that into
+visitors, online now, outbound clicks, words owned, takeovers, a 24-hour visitor chart, and the
+most-clicked and most-valuable words. This is the whole product argument made visible: money buys
+rank, rank buys real traffic — so the traffic has to be provably real.
+
+**Every number is real, never estimated or seeded.** `src/lib/attention.ts` is the single source
+of truth for how each one is defined:
+
+- **Visitor** — a distinct long-lived cookie (`src/app/api/visit/route.ts`), set only after a
+  real browser runs the heartbeat's client-side JavaScript (`VisitorHeartbeat` component). Most
+  bots and crawlers never execute that at all; the ones that do are still filtered by User-Agent
+  (the same `looksLikeBot` check used for click validity).
+- **Online** — a visitor whose last heartbeat (fired on load, then every ~60s while the tab stays
+  open) was within the last 5 minutes.
+- **Most Clicked Words** uses `Word.clickCount` (a lifetime total across every owner) — the one
+  deliberate exception to "clicks belong to the current ownership": this is a word-level
+  attention figure, not a specific owner's performance, so it must NOT reset on takeover. Every
+  other display (the leaderboard, the word page) uses the current ownership's own count, which
+  does reset — see the comment on `Word.clickCount` in `prisma/schema.prisma`.
+
+Because the header carries live data, every page in this app renders dynamically — see the
+`export const dynamic = 'force-dynamic'` on `/terms` and the custom `not-found.tsx`; without it,
+a page could be statically prerendered at build time and freeze a stale online/visitor count into
+its HTML until the next deploy.
+
+**What's deliberately not here:** geography, device, browser, referrer, or CTR breakdowns, and no
+owner-specific analytics (impressions, unique clicks, cost-per-click). Those are a genuinely
+different, later feature — a private dashboard for a word's *current owner* about *their own*
+ownership — and would need real auth to gate correctly. This page is public and word/platform-
+level only.
 
 ## Refunds
 

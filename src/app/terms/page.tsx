@@ -7,6 +7,10 @@ export const metadata: Metadata = {
   description: `What you are and are not buying on ${SITE_NAME}.`,
 };
 
+// Otherwise this page would be statically prerendered at build time, freezing the header's
+// live online/visitor proof numbers into this page's HTML forever until the next deploy.
+export const dynamic = 'force-dynamic';
+
 export default function TermsPage() {
   return (
     <article className="max-w-prose py-10 text-sm leading-relaxed text-muted">
