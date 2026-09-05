@@ -27,7 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <header className="border-b border-line">
           <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-4 py-4">
             <Link href="/" className="font-mono text-sm font-bold tracking-tight">
-              👑 OWN<span className="text-gold">THE</span>INTERNET
+              👑 {SITE_NAME}
             </Link>
             <Link
               href="/claim"

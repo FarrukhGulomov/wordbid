@@ -34,7 +34,8 @@ export async function GET(_request: Request, ctx: { params: Promise<{ word: stri
     owned: true,
     valueCents: word.valueCents,
     minimumBidCents: minimumBidCents(word.valueCents),
-    clickCount: word.clickCount,
+    // Clicks earned by the current owner only — see getLeaderboard for the same rule.
+    clickCount: word.currentOwnership.clickCount,
     rank: await getRank(word.id),
     owner: { name: word.currentOwnership.owner.name, url: word.currentOwnership.owner.url },
   });

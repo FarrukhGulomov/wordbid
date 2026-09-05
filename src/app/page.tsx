@@ -31,6 +31,9 @@ export default async function HomePage() {
         <p className="mt-3 text-base text-muted sm:text-lg">
           Claim a word. Own a position. Get seen.
         </p>
+        <p className="mt-1 text-sm text-muted/80">
+          Every word has one owner. Until someone takes it.
+        </p>
 
         <div className="mx-auto mt-8 max-w-md">
           <WordSearch />

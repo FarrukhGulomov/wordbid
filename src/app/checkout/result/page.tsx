@@ -3,7 +3,9 @@ import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { formatUsd } from '@/lib/money';
 import { getRank } from '@/lib/queries';
+import { config, SITE_NAME } from '@/lib/config';
 import { PendingRefresh } from '@/components/PendingRefresh';
+import { ShareButtons } from '@/components/ShareButtons';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,43 +33,38 @@ export default async function CheckoutResultPage({
 
   if (payment.status === 'CONFIRMED') {
     const rank = await getRank(payment.wordId);
-    const shareText = `👑 We own "${wordDisplay}" on OwnTheInternet.`;
-    const shareUrl = `/word/${payment.word.normalized}`;
+    const wordPath = `/word/${payment.word.normalized}`;
+    // The canonical, absolute URL — this is what gets shared and copied, never the relative path.
+    const canonicalUrl = `${config.siteUrl}${wordPath}`;
+    const shareText = `👑 We own "${wordDisplay}" on ${SITE_NAME}.`;
 
     return (
       <div className="py-16 text-center">
         <p className="font-mono text-xs tracking-widest text-live">PAYMENT CONFIRMED</p>
         <h1 className="mt-3 font-mono text-3xl font-black tracking-tight sm:text-4xl">
-          👑 YOU OWN {wordDisplay}
+          YOU OWN {wordDisplay} 👑
         </h1>
-        <p className="mt-4 text-muted">
-          {payment.owner.name} owns {wordDisplay} at{' '}
-          <span className="font-bold text-gold">{formatUsd(payment.amountCents)}</span>
+        <p className="mt-4 text-lg">
+          {payment.owner.name} now owns {wordDisplay} on {SITE_NAME}.
+        </p>
+        <p className="mt-1 text-sm text-muted">
+          {formatUsd(payment.amountCents)}
           {rank ? (
             <>
               {' '}
-              — global rank <span className="font-bold text-text">#{rank}</span>.
+              — global rank <span className="font-bold text-text">#{rank}</span>
             </>
-          ) : (
-            '.'
-          )}
+          ) : null}
         </p>
 
         <div className="mx-auto mt-8 flex max-w-sm flex-col gap-2">
           <Link
-            href={shareUrl}
+            href={wordPath}
             className="rounded bg-gold px-4 py-2.5 font-mono text-sm font-bold text-ink transition hover:opacity-85"
           >
             SEE YOUR WORD PAGE
           </Link>
-          <a
-            href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded border border-line px-4 py-2.5 font-mono text-sm font-bold transition hover:border-muted"
-          >
-            SHARE IT
-          </a>
+          <ShareButtons shareText={shareText} canonicalUrl={canonicalUrl} />
           <Link href="/" className="mt-2 text-sm text-muted underline underline-offset-2">
             See the leaderboard
           </Link>

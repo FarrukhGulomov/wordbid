@@ -51,7 +51,9 @@ export async function getLeaderboard(limit = 50, skip = 0): Promise<LeaderboardR
         normalized: word.normalized,
         display: word.display,
         valueCents: word.valueCents,
-        clickCount: word.clickCount,
+        // Clicks belong to the ownership that earned them, not to the word across every owner
+        // it has ever had — word.clickCount is a lifetime total, never shown here.
+        clickCount: word.currentOwnership!.clickCount,
         ownerName: owner.name,
         ownerUrl: owner.url,
         ownerLogoUrl: owner.logoUrl,

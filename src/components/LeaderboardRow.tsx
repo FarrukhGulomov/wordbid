@@ -43,7 +43,7 @@ export function LeaderboardRow({ row }: { row: Row }) {
           href={`/claim?word=${encodeURIComponent(row.normalized)}`}
           className="rounded border border-gold px-2 py-1 text-center font-mono text-[11px] font-bold text-gold transition hover:bg-gold hover:text-ink"
         >
-          TAKE
+          TAKE FOR {formatUsd(row.minimumBidCents)}
         </Link>
       </div>
     </li>

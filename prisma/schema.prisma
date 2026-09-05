@@ -40,7 +40,9 @@ model Word {
   currentOwnership   Ownership? @relation("CurrentOwnership", fields: [currentOwnershipId], references: [id])
   /// When the current ownership was confirmed. Deterministic tie-break for equal values.
   ownedSince         DateTime?
-  /// Denormalised sum of valid clicks across all ownerships. Shown publicly.
+  /// Lifetime sum of valid clicks across every ownership this word has ever had.
+  /// Internal only — never shown publicly. Public surfaces show the CURRENT owner's
+  /// clicks instead, which is Ownership.clickCount on the active ownership.
   clickCount         Int        @default(0)
   /// Moderation: hidden from every public surface, cannot be claimed.
   blocked            Boolean    @default(false)

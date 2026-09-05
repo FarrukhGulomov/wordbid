@@ -1,4 +1,5 @@
 import Stripe from 'stripe';
+import { SITE_NAME } from '../config';
 import type { CheckoutRequest, CheckoutSession, PaymentProvider, WebhookEvent } from './types';
 
 /**
@@ -34,7 +35,7 @@ export class StripePaymentProvider implements PaymentProvider {
               currency: this.currency,
               unit_amount: req.amountCents,
               product_data: {
-                name: `Own "${req.wordDisplay}" on OwnTheInternet`,
+                name: `Own "${req.wordDisplay}" on ${SITE_NAME}`,
                 description:
                   `Placement for ${req.brandName} on the word "${req.wordDisplay}". ` +
                   'Temporary placement on this platform only. Not legal ownership of the word. ' +

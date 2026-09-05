@@ -45,7 +45,7 @@ export async function fetchSiteMetadata(rawUrl: string): Promise<SiteMetadata> {
     const response = await safeFetch(validated.url, {
       signal: controller.signal,
       redirect: 'error',
-      headers: { 'User-Agent': 'OwnTheInternet/1.0 (+link preview)', Accept: 'text/html' },
+      headers: { 'User-Agent': 'WordBid/1.0 (+link preview)', Accept: 'text/html' },
       cache: 'no-store',
     });
     if (!response.ok) return { title: null, description: null };

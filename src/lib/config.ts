@@ -36,4 +36,4 @@ export const config = {
   },
 } as const;
 
-export const SITE_NAME = 'OwnTheInternet';
+export const SITE_NAME = 'WordBid';

@@ -105,7 +105,10 @@ export default async function WordPage({ params }: Props) {
           </div>
           <div>
             <dt className="font-mono text-xs text-muted">CLICKS</dt>
-            <dd className="tnum font-mono text-xl font-bold">{formatCount(word.clickCount)}</dd>
+            {/* Clicks earned by the CURRENT owner only — a takeover always starts at 0. */}
+            <dd className="tnum font-mono text-xl font-bold">
+              {formatCount(word.currentOwnership?.clickCount ?? 0)}
+            </dd>
           </div>
           <div>
             <dt className="font-mono text-xs text-muted">TAKEOVER PRICE</dt>
