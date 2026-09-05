@@ -30,10 +30,20 @@ export async function GET(_request: Request, ctx: { params: Promise<{ word: stri
 
   try {
     const h = await headers();
+    const ip = clientIpFrom(h);
+    // TEMPORARY diagnostic — a user reported click counts stuck at 2 across distinct visitors.
+    // Checking whether Railway's proxy is actually forwarding a distinct per-visitor IP, or
+    // whether every visitor is collapsing into the 'unknown' fallback. Remove once confirmed.
+    console.log('[click-debug]', {
+      xForwardedFor: h.get('x-forwarded-for'),
+      xRealIp: h.get('x-real-ip'),
+      resolvedIp: ip,
+      userAgent: h.get('user-agent'),
+    });
     await recordClick({
       ownershipId: word.currentOwnership.id,
       wordId: word.id,
-      ip: clientIpFrom(h),
+      ip,
       userAgent: h.get('user-agent') || '',
       referrer: h.get('referer'),
     });
