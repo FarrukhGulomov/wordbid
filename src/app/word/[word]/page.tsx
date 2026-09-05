@@ -101,7 +101,10 @@ export default async function WordPage({ params }: Props) {
           <p className="mt-3 text-sm text-muted">{owner.description}</p>
         ) : null}
 
-        <dl className="mt-5 grid grid-cols-2 gap-4 border-t border-line pt-4 sm:grid-cols-3">
+        {/* Primary purchase decision only: who owns it, what it's worth, what it costs to take.
+            Impressions/CTR/traffic history live behind VIEW ANALYTICS — this card must not
+            turn into an analytics dashboard. */}
+        <dl className="mt-5 grid grid-cols-3 gap-4 border-t border-line pt-4">
           <div>
             <dt className="font-mono text-xs text-muted">CURRENT VALUE</dt>
             <dd className="tnum font-mono text-xl font-bold text-gold">
@@ -119,25 +122,9 @@ export default async function WordPage({ params }: Props) {
             <dt className="font-mono text-xs text-muted">TAKEOVER PRICE</dt>
             <dd className="tnum font-mono text-xl font-bold">{formatUsd(takePrice)}</dd>
           </div>
-          {performance ? (
-            <>
-              <div>
-                <dt className="font-mono text-xs text-muted">IMPRESSIONS</dt>
-                <dd className="tnum font-mono text-xl font-bold">
-                  {formatCount(performance.impressions)}
-                </dd>
-              </div>
-              <div>
-                <dt className="font-mono text-xs text-muted">CTR</dt>
-                <dd className="tnum font-mono text-xl font-bold">
-                  {performance.ctr.toFixed(1)}%
-                </dd>
-              </div>
-            </>
-          ) : null}
         </dl>
 
-        {word.currentOwnership ? (
+        {performance ? (
           <p className="mt-3 text-xs">
             <Link
               href={`/word/${word.normalized}/analytics`}
@@ -160,7 +147,7 @@ export default async function WordPage({ params }: Props) {
             href={`/claim?word=${encodeURIComponent(word.normalized)}`}
             className="flex-1 rounded bg-gold px-4 py-2.5 text-center font-mono text-sm font-bold text-ink transition hover:opacity-85"
           >
-            TAKE THIS WORD
+            TAKE FOR {formatUsd(takePrice)}
           </Link>
         </div>
         <p className="mt-2 text-center text-xs text-muted">Paid placement. Not an endorsement.</p>

@@ -39,6 +39,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <Link href="/" className="font-mono text-sm font-bold tracking-tight">
                 👑 {SITE_NAME}
               </Link>
+              {/* Desktop: same proof line, folded into the header's one row instead of a
+                  second line — keeps the header compact so the product starts sooner. */}
+              <p className="tnum hidden font-mono text-xs text-muted sm:block">
+                <span className="text-live">🟢</span> {formatCount(online)} online ·{' '}
+                {formatCount(visitors)} visitors ·{' '}
+                <Link href="/stats" className="text-muted underline underline-offset-2 hover:text-text">
+                  STATS →
+                </Link>
+              </p>
               <Link
                 href="/claim"
                 className="rounded bg-gold px-3 py-1.5 font-mono text-xs font-bold text-ink transition hover:opacity-85"
@@ -46,7 +55,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 CLAIM A WORD
               </Link>
             </div>
-            <p className="tnum mt-1.5 font-mono text-xs text-muted">
+            <p className="tnum mt-1.5 font-mono text-xs text-muted sm:hidden">
               <span className="text-live">🟢</span> {formatCount(online)} online ·{' '}
               {formatCount(visitors)} visitors ·{' '}
               <Link href="/stats" className="text-muted underline underline-offset-2 hover:text-text">
