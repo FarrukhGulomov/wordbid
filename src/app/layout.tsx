@@ -70,6 +70,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               ownership of a word, a trademark, a domain or any intellectual property.
             </p>
             <p className="flex gap-4 pt-2">
+              <Link href="/stats" className="underline underline-offset-2 hover:text-text">
+                Stats
+              </Link>
               <Link href="/terms" className="underline underline-offset-2 hover:text-text">
                 Terms
               </Link>

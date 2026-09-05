@@ -3,18 +3,35 @@ import { BrandLogo } from '@/components/BrandLogo';
 import { formatUsd, formatCount } from '@/lib/money';
 import type { LeaderboardRow as Row } from '@/lib/queries';
 
-/** One line of the global leaderboard: rank, word, owner, value, clicks, two actions. */
+/**
+ * One line of the global leaderboard: rank, word, owner, value, clicks, two actions.
+ *
+ * #1 gets a subtle premium treatment — a crown, a touch more weight, a faint gold wash — never
+ * a card, gradient or animation. It's the one row that should read as a trophy at a glance.
+ */
 export function LeaderboardRow({ row }: { row: Row }) {
+  const isTop = row.rank === 1;
+
   return (
-    <li className="flex items-center gap-3 border-b border-line px-1 py-4 sm:gap-4">
-      <span className="tnum w-8 shrink-0 font-mono text-sm text-muted sm:w-10 sm:text-base">
-        #{row.rank}
+    <li
+      className={`flex items-center gap-3 border-b px-1 py-4 sm:gap-4 ${
+        isTop ? 'border-gold/30 bg-gold/5' : 'border-line'
+      }`}
+    >
+      <span
+        className={`tnum w-8 shrink-0 font-mono sm:w-10 ${
+          isTop ? 'text-sm text-gold sm:text-base' : 'text-sm text-muted sm:text-base'
+        }`}
+      >
+        {isTop ? '👑 #1' : `#${row.rank}`}
       </span>
 
       <div className="min-w-0 flex-1">
         <Link
           href={`/word/${row.normalized}`}
-          className="block truncate font-mono text-base font-bold uppercase tracking-tight hover:text-gold sm:text-lg"
+          className={`block truncate font-mono font-bold uppercase tracking-tight hover:text-gold ${
+            isTop ? 'text-lg sm:text-xl' : 'text-base sm:text-lg'
+          }`}
         >
           {row.display}
         </Link>
@@ -25,7 +42,7 @@ export function LeaderboardRow({ row }: { row: Row }) {
       </div>
 
       <div className="shrink-0 text-right">
-        <div className="tnum font-mono text-base font-bold text-gold sm:text-lg">
+        <div className="tnum font-mono font-bold text-gold text-base sm:text-lg">
           {formatUsd(row.valueCents)}
         </div>
         <div className="tnum text-xs text-muted">{formatCount(row.clickCount)} clicks</div>

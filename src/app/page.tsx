@@ -2,12 +2,7 @@ import Link from 'next/link';
 import { LeaderboardRow } from '@/components/LeaderboardRow';
 import { ActivityFeed } from '@/components/ActivityFeed';
 import { WordSearch } from '@/components/WordSearch';
-import {
-  getLeaderboard,
-  getRecentActivity,
-  getRecentlyClaimed,
-  getMostFoughtOver,
-} from '@/lib/queries';
+import { getLeaderboard, getRecentActivity, getMostFoughtOver } from '@/lib/queries';
 import { formatUsd } from '@/lib/money';
 import { config } from '@/lib/config';
 
@@ -15,27 +10,24 @@ import { config } from '@/lib/config';
 export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
-  const [board, activity, recent, contested] = await Promise.all([
+  const [board, activity, contested] = await Promise.all([
     getLeaderboard(50),
     getRecentActivity(6),
-    getRecentlyClaimed(6),
     getMostFoughtOver(6),
   ]);
 
   return (
     <>
-      <section className="py-12 text-center sm:py-16">
+      <section className="py-8 text-center sm:py-10">
         <h1 className="font-mono text-4xl font-black tracking-tighter sm:text-6xl">
           OWN THE INTERNET
         </h1>
-        <p className="mt-3 text-base text-muted sm:text-lg">
-          Claim a word. Own a position. Get seen.
-        </p>
-        <p className="mt-1 text-sm text-muted/80">
+        <p className="mt-2 text-base text-text sm:text-lg">
           Every word has one owner. Until someone takes it.
         </p>
+        <p className="mt-1 text-sm text-muted">Claim a word. Own a position. Get seen.</p>
 
-        <div className="mx-auto mt-8 max-w-md">
+        <div className="mx-auto mt-6 max-w-md">
           <WordSearch />
           <p className="mt-2 text-xs text-muted">
             Unclaimed words start at {formatUsd(config.startingPriceCents)}. Owned words cost{' '}
@@ -76,53 +68,26 @@ export default async function HomePage() {
 
       <ActivityFeed entries={activity} />
 
-      {(recent.length > 0 || contested.length > 0) && (
-        <section className="mt-10 grid gap-6 sm:grid-cols-2">
-          {recent.length > 0 && (
-            <div>
-              <h2 className="mb-2 font-mono text-xs font-bold tracking-widest text-muted">
-                RECENTLY CLAIMED
-              </h2>
-              <ul className="space-y-1 text-sm">
-                {recent.map((word) => (
-                  <li key={word.id} className="flex items-baseline justify-between gap-2">
-                    <Link
-                      href={`/word/${word.normalized}`}
-                      className="truncate font-mono font-bold uppercase hover:text-gold"
-                    >
-                      {word.display}
-                    </Link>
-                    <span className="truncate text-xs text-muted">
-                      {word.currentOwnership?.owner.name}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {contested.length > 0 && (
-            <div>
-              <h2 className="mb-2 font-mono text-xs font-bold tracking-widest text-muted">
-                MOST FOUGHT OVER
-              </h2>
-              <ul className="space-y-1 text-sm">
-                {contested.map(({ word, takeovers }) => (
-                  <li key={word.id} className="flex items-baseline justify-between gap-2">
-                    <Link
-                      href={`/word/${word.normalized}`}
-                      className="truncate font-mono font-bold uppercase hover:text-gold"
-                    >
-                      {word.display}
-                    </Link>
-                    <span className="tnum shrink-0 text-xs text-muted">
-                      {takeovers} takeover{takeovers === 1 ? '' : 's'}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+      {contested.length > 0 && (
+        <section className="mt-10">
+          <h2 className="mb-2 font-mono text-xs font-bold tracking-widest text-muted">
+            🔥 MOST FOUGHT OVER
+          </h2>
+          <ul className="space-y-1 text-sm">
+            {contested.map(({ word, takeovers }) => (
+              <li key={word.id} className="flex items-baseline justify-between gap-2">
+                <Link
+                  href={`/word/${word.normalized}`}
+                  className="truncate font-mono font-bold uppercase hover:text-gold"
+                >
+                  {word.display}
+                </Link>
+                <span className="tnum shrink-0 text-xs text-muted">
+                  {takeovers} takeover{takeovers === 1 ? '' : 's'}
+                </span>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
     </>
