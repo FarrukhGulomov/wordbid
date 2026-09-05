@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from './db';
 import { minimumBidCents } from './pricing';
 
@@ -21,17 +22,18 @@ export type LeaderboardRow = {
   minimumBidCents: number;
 };
 
-const RANK_ORDER = [
+/** The ranking order, in one place: value first, then the earlier ownership, then a stable id. */
+const RANK_ORDER: Prisma.WordOrderByWithRelationInput[] = [
   { valueCents: 'desc' },
   { ownedSince: 'asc' },
   { id: 'asc' },
-] as const;
+];
 
 /** The global leaderboard. Only words with a confirmed current owner appear. */
 export async function getLeaderboard(limit = 50, skip = 0): Promise<LeaderboardRow[]> {
   const words = await prisma.word.findMany({
     where: { blocked: false, currentOwnershipId: { not: null } },
-    orderBy: RANK_ORDER as never,
+    orderBy: RANK_ORDER,
     take: limit,
     skip,
     include: {
