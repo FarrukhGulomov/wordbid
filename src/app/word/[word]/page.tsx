@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { BrandLogo } from '@/components/BrandLogo';
+import { ImpressionBeacon } from '@/components/ImpressionBeacon';
 import { notFound } from 'next/navigation';
 import { getWordByNormalized } from '@/lib/queries';
+import { getOwnershipPerformance } from '@/lib/ownership-stats';
 import { normalizeWord } from '@/lib/word';
 import { formatUsd, formatCount } from '@/lib/money';
 import { minimumBidCents } from '@/lib/pricing';
@@ -73,9 +75,12 @@ export default async function WordPage({ params }: Props) {
   }
 
   const history = word.ownerships;
+  const performance = word.currentOwnership ? await getOwnershipPerformance(word.currentOwnership.id) : null;
 
   return (
     <div className="py-10">
+      <ImpressionBeacon words={[word.normalized]} />
+
       <p className="font-mono text-xs tracking-widest text-muted">
         {word.rank ? `GLOBAL RANK #${word.rank}` : 'UNRANKED'}
       </p>
@@ -104,8 +109,8 @@ export default async function WordPage({ params }: Props) {
             </dd>
           </div>
           <div>
-            <dt className="font-mono text-xs text-muted">CLICKS</dt>
-            {/* Clicks earned by the CURRENT owner only — a takeover always starts at 0. */}
+            <dt className="font-mono text-xs text-muted">CLICKS DELIVERED</dt>
+            {/* Earned by the CURRENT owner only — a takeover always starts back at 0. */}
             <dd className="tnum font-mono text-xl font-bold">
               {formatCount(word.currentOwnership?.clickCount ?? 0)}
             </dd>
@@ -114,7 +119,34 @@ export default async function WordPage({ params }: Props) {
             <dt className="font-mono text-xs text-muted">TAKEOVER PRICE</dt>
             <dd className="tnum font-mono text-xl font-bold">{formatUsd(takePrice)}</dd>
           </div>
+          {performance ? (
+            <>
+              <div>
+                <dt className="font-mono text-xs text-muted">IMPRESSIONS</dt>
+                <dd className="tnum font-mono text-xl font-bold">
+                  {formatCount(performance.impressions)}
+                </dd>
+              </div>
+              <div>
+                <dt className="font-mono text-xs text-muted">CTR</dt>
+                <dd className="tnum font-mono text-xl font-bold">
+                  {performance.ctr.toFixed(1)}%
+                </dd>
+              </div>
+            </>
+          ) : null}
         </dl>
+
+        {word.currentOwnership ? (
+          <p className="mt-3 text-xs">
+            <Link
+              href={`/word/${word.normalized}/analytics`}
+              className="text-muted underline underline-offset-2 hover:text-text"
+            >
+              VIEW ANALYTICS →
+            </Link>
+          </p>
+        ) : null}
 
         <div className="mt-5 flex flex-col gap-2 sm:flex-row">
           <a

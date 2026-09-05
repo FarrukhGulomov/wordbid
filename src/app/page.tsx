@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { LeaderboardRow } from '@/components/LeaderboardRow';
 import { ActivityFeed } from '@/components/ActivityFeed';
 import { WordSearch } from '@/components/WordSearch';
+import { ImpressionBeacon } from '@/components/ImpressionBeacon';
 import { getLeaderboard, getRecentActivity, getMostFoughtOver } from '@/lib/queries';
 import { formatUsd } from '@/lib/money';
 import { config } from '@/lib/config';
@@ -18,6 +19,8 @@ export default async function HomePage() {
 
   return (
     <>
+      <ImpressionBeacon words={board.map((row) => row.normalized)} />
+
       <section className="py-8 text-center sm:py-10">
         <h1 className="font-mono text-4xl font-black tracking-tighter sm:text-6xl">
           OWN THE INTERNET

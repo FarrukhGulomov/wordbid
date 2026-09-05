@@ -157,11 +157,44 @@ Because the header carries live data, every page in this app renders dynamically
 a page could be statically prerendered at build time and freeze a stale online/visitor count into
 its HTML until the next deploy.
 
-**What's deliberately not here:** geography, device, browser, referrer, or CTR breakdowns, and no
-owner-specific analytics (impressions, unique clicks, cost-per-click). Those are a genuinely
-different, later feature — a private dashboard for a word's *current owner* about *their own*
-ownership — and would need real auth to gate correctly. This page is public and word/platform-
-level only.
+**What's deliberately not here:** geography, device, or browser breakdowns, and any per-owner
+login-gated dashboard. This page stays public and platform-level only — the per-*ownership* view
+below is a separate, smaller feature.
+
+## Ownership analytics
+
+Every metric here belongs to an **Ownership period**, never to a Word — the same rule the
+click-attribution fix established, extended to impressions and CTR. A takeover always starts a
+brand-new Ownership row at zero on every one of these; a later reclaim by the same brand creates
+yet another new row, not a reuse of the old one. `src/lib/ownership-stats.ts` is the single source
+of truth; `tests/ownership-stats.test.ts` proves the full claim → takeover → reclaim chain keeps
+each period's numbers correctly isolated.
+
+- **Impressions** — `POST /api/impression`, fired by `ImpressionBeacon` (mounted on the homepage
+  leaderboard and on each word page) the moment a real browser actually rendered that listing.
+  Bot-filtered and rate-limited the same way `/api/visit` is. Unlike clicks, impressions are
+  intentionally **not** deduplicated per visitor — a reload is a genuinely new impression, same
+  as any ad-impression count.
+- **Unique clicks** — distinct visitor hashes among an ownership's valid clicks (the existing
+  bot-filtering and per-visitor dedupe window already guard click validity; this just counts
+  distinct visitors within it).
+- **CTR** — `unique clicks ÷ impressions × 100`. 0 impressions is reported as 0%, never `NaN`.
+- **Daily rollups** (`OwnershipDailyStat`, one row per ownership per UTC day) back the "today" /
+  "last 7 days" traffic figures — an aggregate bucket table, not a per-event log, so it stays
+  small regardless of traffic volume.
+- **Top referrers** — the `Referer` header's hostname only (never a full URL, which could leak a
+  visitor's own page path) on each valid click. **Top countries are deliberately not included** —
+  there is no reliable data source for that without adding a geo-IP lookup dependency, and this
+  project does not fabricate data it can't honestly measure.
+
+Public surfaces:
+- The word page shows **Clicks delivered**, **Impressions**, and **CTR** for the current
+  ownership, plus a **View analytics →** link.
+- `/word/<word>/analytics` is the full "Ownership Performance" view — impressions, unique clicks,
+  CTR, current value, start date, today/7-day traffic, and top referrers. It is public, not
+  gated behind a login, because there is no owner authentication in this product at all (see
+  **Not built**) — building one just to gate this page would be a much bigger feature than the
+  page itself.
 
 ## Refunds
 

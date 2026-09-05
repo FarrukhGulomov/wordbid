@@ -45,7 +45,7 @@ export function LeaderboardRow({ row }: { row: Row }) {
         <div className="tnum font-mono font-bold text-gold text-base sm:text-lg">
           {formatUsd(row.valueCents)}
         </div>
-        <div className="tnum text-xs text-muted">{formatCount(row.clickCount)} clicks</div>
+        <div className="tnum text-xs text-muted">{formatCount(row.clickCount)} clicks delivered</div>
       </div>
 
       <div className="flex shrink-0 flex-col gap-1 sm:flex-row sm:gap-2">

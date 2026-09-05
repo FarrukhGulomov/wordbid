@@ -35,6 +35,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ word: stri
       wordId: word.id,
       ip: clientIpFrom(h),
       userAgent: h.get('user-agent') || '',
+      referrer: h.get('referer'),
     });
   } catch (err) {
     console.error('click tracking failed', err);

@@ -82,24 +82,45 @@ model Owner {
 
 /// One period during which an Owner held a Word. Never deleted — this is the history.
 model Ownership {
-  id          String    @id @default(cuid())
-  wordId      String
-  word        Word      @relation("WordOwnerships", fields: [wordId], references: [id])
-  ownerId     String
-  owner       Owner     @relation(fields: [ownerId], references: [id])
-  amountCents Int
-  startedAt   DateTime  @default(now())
-  endedAt     DateTime?
+  id              String    @id @default(cuid())
+  wordId          String
+  word            Word      @relation("WordOwnerships", fields: [wordId], references: [id])
+  ownerId         String
+  owner           Owner     @relation(fields: [ownerId], references: [id])
+  amountCents     Int
+  startedAt       DateTime  @default(now())
+  endedAt         DateTime?
   /// The confirmed payment that created this ownership. One payment => at most one ownership.
-  paymentId   String    @unique
-  payment     Payment   @relation(fields: [paymentId], references: [id])
+  paymentId       String    @unique
+  payment         Payment   @relation(fields: [paymentId], references: [id])
   /// Denormalised valid outbound clicks earned during this ownership.
-  clickCount  Int       @default(0)
+  clickCount      Int       @default(0)
+  /// Denormalised valid impressions (the word was shown to a real visitor) earned during this
+  /// ownership. Like clickCount, this belongs to the ownership period, never to the word — it
+  /// resets to 0 on takeover. See src/lib/ownership-stats.ts.
+  impressionCount Int       @default(0)
 
   clicks        Click[]
-  currentOfWord Word?   @relation("CurrentOwnership")
+  dailyStats    OwnershipDailyStat[]
+  currentOfWord Word?                @relation("CurrentOwnership")
 
   @@index([wordId, startedAt])
+}
+
+/// One row per (ownership, calendar day) that had any impressions or clicks — the rollup behind
+/// "daily clicks/impressions" and the "today / last 7 days" traffic figures on the ownership
+/// analytics view. Mirrors VisitorHourly's pattern: an aggregate bucket, not a per-event log.
+model OwnershipDailyStat {
+  id          String    @id @default(cuid())
+  ownershipId String
+  ownership   Ownership @relation(fields: [ownershipId], references: [id])
+  /// The UTC calendar day this row aggregates, truncated to midnight.
+  day         DateTime
+  impressions Int       @default(0)
+  clicks      Int       @default(0)
+
+  @@unique([ownershipId, day])
+  @@index([day])
 }
 
 /// Intent to buy a word at a price. Ownership is created ONLY when status becomes CONFIRMED.
@@ -148,6 +169,9 @@ model Click {
   /// Salted hash of IP + user agent. Never store raw IPs.
   visitorHash String
   valid       Boolean   @default(true)
+  /// Referring hostname only (e.g. "x.com"), or "direct" with no Referer header. Never a full
+  /// URL — that could leak the visitor's own page path/query on some referring sites.
+  referrer    String?
   createdAt   DateTime  @default(now())
 
   @@index([ownershipId, visitorHash, createdAt])

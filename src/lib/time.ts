@@ -1,3 +1,8 @@
+/** "Sep 6" — the compact form used on ownership analytics ("Started Sep 6"). */
+export function shortDate(date: Date): string {
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 /** "2m", "8m", "3h", "5d" — the compact form used in the live activity feed. */
 export function shortAgo(date: Date, now: Date = new Date()): string {
   const seconds = Math.max(0, Math.floor((now.getTime() - date.getTime()) / 1000));

@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach, afterAll } from 'vitest';
 import { confirmPayment } from '@/lib/ownership';
-import { recordClick, looksLikeBot, visitorHash } from '@/lib/clicks';
+import { recordClick, looksLikeBot, visitorHash, referrerHostFrom } from '@/lib/clicks';
 import { db, resetDb, seedPendingPayment } from './helpers';
 
 beforeEach(resetDb);
@@ -41,6 +41,18 @@ describe('looksLikeBot', () => {
 
   it('allows ordinary browsers', () => {
     expect(looksLikeBot(CHROME)).toBe(false);
+  });
+});
+
+describe('referrerHostFrom', () => {
+  it('extracts just the hostname from a full referring URL', () => {
+    expect(referrerHostFrom('https://x.com/some/status/123?ref=abc')).toBe('x.com');
+  });
+
+  it('is "direct" for no referrer or a malformed one', () => {
+    expect(referrerHostFrom(null)).toBe('direct');
+    expect(referrerHostFrom('')).toBe('direct');
+    expect(referrerHostFrom('not-a-url')).toBe('direct');
   });
 });
 
@@ -127,5 +139,54 @@ describe('recordClick', () => {
       (await db.ownership.findUniqueOrThrow({ where: { id: after.currentOwnership!.id } })).clickCount,
     ).toBe(1);
     expect((await db.word.findUniqueOrThrow({ where: { id: word.id } })).clickCount).toBe(2);
+  });
+
+  it('stores the referring hostname, or "direct" when there is none', async () => {
+    const word = await ownedWord('coding', 'DevX', 'e1');
+    await recordClick({
+      ownershipId: word.currentOwnership!.id,
+      wordId: word.id,
+      ip: '1.1.1.1',
+      userAgent: CHROME,
+      referrer: 'https://x.com/status/1',
+    });
+    await recordClick({
+      ownershipId: word.currentOwnership!.id,
+      wordId: word.id,
+      ip: '2.2.2.2',
+      userAgent: CHROME,
+    });
+
+    const clicks = await db.click.findMany({ orderBy: { createdAt: 'asc' } });
+    expect(clicks[0]!.referrer).toBe('x.com');
+    expect(clicks[1]!.referrer).toBe('direct');
+  });
+
+  it('adds a daily-click rollup row alongside a valid click', async () => {
+    const word = await ownedWord('coding', 'DevX', 'e1');
+    await recordClick({
+      ownershipId: word.currentOwnership!.id,
+      wordId: word.id,
+      ip: '1.1.1.1',
+      userAgent: CHROME,
+    });
+
+    const rows = await db.ownershipDailyStat.findMany({
+      where: { ownershipId: word.currentOwnership!.id },
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.clicks).toBe(1);
+  });
+
+  it('does not add a daily-click row for an invalid (bot) click', async () => {
+    const word = await ownedWord('coding', 'DevX', 'e1');
+    await recordClick({
+      ownershipId: word.currentOwnership!.id,
+      wordId: word.id,
+      ip: '1.1.1.1',
+      userAgent: 'Googlebot/2.1',
+    });
+
+    expect(await db.ownershipDailyStat.count()).toBe(0);
   });
 });

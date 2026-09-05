@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { prisma } from './db';
 import { config } from './config';
+import { recordDailyClick } from './ownership-stats';
 
 /**
  * Outbound click tracking.
@@ -31,6 +32,16 @@ export function looksLikeBot(userAgent: string): boolean {
   return BOT_UA.test(userAgent);
 }
 
+/** Hostname only, never a full URL — that could leak the visitor's page path/query. */
+export function referrerHostFrom(referer: string | null): string {
+  if (!referer) return 'direct';
+  try {
+    return new URL(referer).hostname || 'direct';
+  } catch {
+    return 'direct';
+  }
+}
+
 /**
  * Records a click against an ownership and returns whether it counted publicly.
  * Never throws into the redirect path — a failed write must not break the visitor's journey.
@@ -40,6 +51,7 @@ export async function recordClick(params: {
   wordId: string;
   ip: string;
   userAgent: string;
+  referrer?: string | null;
 }): Promise<boolean> {
   const hash = visitorHash(params.ip, params.userAgent);
   const bot = looksLikeBot(params.userAgent);
@@ -58,10 +70,17 @@ export async function recordClick(params: {
       });
 
   const valid = !bot && !recent;
+  const referrer = referrerHostFrom(params.referrer ?? null);
 
   await prisma.$transaction(async (tx) => {
     await tx.click.create({
-      data: { ownershipId: params.ownershipId, wordId: params.wordId, visitorHash: hash, valid },
+      data: {
+        ownershipId: params.ownershipId,
+        wordId: params.wordId,
+        visitorHash: hash,
+        valid,
+        referrer,
+      },
     });
     if (valid) {
       await tx.ownership.update({
@@ -74,6 +93,13 @@ export async function recordClick(params: {
       });
     }
   });
+
+  // Best-effort daily rollup for the ownership analytics view — never blocks the redirect.
+  if (valid) {
+    await recordDailyClick(params.ownershipId).catch((err) => {
+      console.error('recordDailyClick failed', err);
+    });
+  }
 
   return valid;
 }
