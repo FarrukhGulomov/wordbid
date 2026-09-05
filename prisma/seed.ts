@@ -30,10 +30,12 @@ async function main() {
     });
     if (word.currentOwnershipId) continue;
 
+    const domain = `${sample.brand.toLowerCase()}.example.com`;
     const owner = await prisma.owner.create({
       data: {
+        domain,
         name: sample.brand,
-        url: `https://${sample.brand.toLowerCase()}.example.com`,
+        url: `https://${domain}`,
         description: `Sample brand for local development.`,
       },
     });

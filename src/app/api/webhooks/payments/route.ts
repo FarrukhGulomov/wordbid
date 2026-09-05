@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
 import { getPaymentProvider } from '@/lib/payments';
 import { confirmPayment, failPayment } from '@/lib/ownership';
+import { reconcileRefund } from '@/lib/refunds';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -41,16 +41,12 @@ export async function POST(request: Request) {
   const result = await confirmPayment(provider.name, event.eventId, event.reference);
 
   if (result.outcome === 'lost') {
-    // The buyer paid but a competing takeover landed first. Return the money.
-    try {
-      await provider.refund(event.reference, result.amountCents);
-      await prisma.payment.update({
-        where: { id: result.paymentId },
-        data: { status: 'REFUNDED', refundedAt: new Date() },
-      });
-    } catch (err) {
-      // Leave the payment in REFUND_PENDING so it shows up in /admin for manual handling.
-      console.error('webhook: refund failed for payment', result.paymentId, err);
+    // The buyer paid but a competing takeover landed first. Return the money now. If this
+    // fails, the payment stays REFUND_PENDING — surfaced in /admin and retried by
+    // `npm run reconcile-refunds`, so a dead process here never leaves it stuck silently.
+    const refund = await reconcileRefund(result.paymentId);
+    if (refund.outcome === 'failed') {
+      console.error('webhook: refund failed for payment', result.paymentId, refund.error);
     }
   }
 

@@ -122,6 +122,9 @@ Run **one instance** to start. The rate limiter is in-process (`src/lib/ratelimi
 scale horizontally, move it to Redis — the call sites do not change. Everything else is stateless
 and safe to scale.
 
+Also schedule `npm run reconcile-refunds` every 10-15 minutes (cron, or your platform's scheduled
+jobs). See **Refunds** below for what it does and why it exists.
+
 ## Metrics
 
 `/admin` shows revenue, confirmed payments, claimed words, paid placements, takeovers, repeat
@@ -130,12 +133,43 @@ buyers, valid outbound clicks and average ownership value — all computed from 
 Visitors, claim conversion and referral traffic are **not** shown, because they need a web
 analytics tool. Add one (Plausible, Fathom, GA) to `src/app/layout.tsx` if you want them.
 
+## Refunds
+
+A payment that loses the takeover race (`confirmPayment` returns `outcome: 'lost'`) has already
+captured real money. The webhook handler tries to refund it immediately, in the same request. If
+that call fails — or the process dies between marking it `REFUND_PENDING` and calling the
+provider — the payment is stuck with money behind it and no word.
+
+Two ways to clear it, both calling the same `reconcileRefund` in `src/lib/refunds.ts`:
+
+- **`/admin`** lists every `REFUND_PENDING` payment with a **Retry** button (and **Retry all**).
+  Safe to click more than once — a payment that already refunded is a no-op.
+- **`npm run reconcile-refunds`** does the same thing for every stuck payment, from the command
+  line or a cron job. It exits non-zero if anything is still stuck afterwards, so a scheduler's
+  own failure alerting picks it up without extra plumbing.
+
+If a payment keeps failing after a retry, refund it directly in your payment provider's dashboard
+and mark it in `/admin`.
+
 ## Anti-abuse
 
-Word normalisation and a reserved/prohibited list (`src/lib/word.ts`); destination URL validation
-blocking non-http schemes, credentials and internal/loopback hosts (`src/lib/url.ts`); IP rate
-limiting on checkout; bot filtering and per-visitor click dedupe; signature-verified payments; and
-word/brand blocking in `/admin`.
+- **Word normalisation** and a reserved/prohibited list (`src/lib/word.ts`).
+- **Destination URL validation** blocking non-http schemes, embedded credentials and
+  internal/loopback hostnames (`src/lib/url.ts`).
+- **SSRF-safe outbound fetch** (`src/lib/safe-fetch.ts`) for the one server-side request driven
+  by a user-supplied URL (fetching a title/description at claim time). Text validation alone
+  cannot catch a public hostname that resolves to an internal address ("DNS rebinding") — a
+  domain can pass every check in `validateDestinationUrl` and still resolve to `127.0.0.1` or a
+  cloud metadata endpoint. `safeFetch` uses a custom DNS lookup that rejects private/internal
+  addresses at the moment a connection is actually made, not before, so the address that is
+  checked is the exact address connected to.
+- **Canonical brand identity.** `Owner` is keyed by domain (`www.` stripped, lowercased), not
+  minted fresh per checkout — the same brand bidding on five words, or bidding again later, is
+  one row. This is also what makes the repeat-buyer metric a plain count rather than a guess.
+- IP rate limiting on checkout and on the admin sign-in form.
+- Bot filtering and per-visitor click dedupe.
+- Signature-verified, idempotent payments (see **Payment correctness** above).
+- Word/brand blocking in `/admin`, including retrying a stuck refund.
 
 ## Not built (deliberately)
 

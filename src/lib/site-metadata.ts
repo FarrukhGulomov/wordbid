@@ -1,4 +1,5 @@
 import { validateDestinationUrl } from './url';
+import { safeFetch } from './safe-fetch';
 
 /**
  * Best-effort title/description for a destination, so claiming needs no profile writing.
@@ -41,7 +42,7 @@ export async function fetchSiteMetadata(rawUrl: string): Promise<SiteMetadata> {
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
   try {
-    const response = await fetch(validated.url, {
+    const response = await safeFetch(validated.url, {
       signal: controller.signal,
       redirect: 'error',
       headers: { 'User-Agent': 'OwnTheInternet/1.0 (+link preview)', Accept: 'text/html' },

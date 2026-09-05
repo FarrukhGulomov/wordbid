@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { canonicalDomain } from '@/lib/url';
 
 export const db = new PrismaClient();
 
@@ -21,8 +22,13 @@ export async function seedPendingPayment(opts: {
     update: {},
     create: { normalized: opts.word, display: opts.word.toUpperCase() },
   });
-  const owner = await db.owner.create({
-    data: { name: opts.brand, url: opts.url ?? `https://${opts.brand.toLowerCase()}.example` },
+  // Mirrors the checkout route: one Owner row per canonical domain, reused across calls.
+  const url = opts.url ?? `https://${opts.brand.toLowerCase()}.example`;
+  const domain = canonicalDomain(new URL(url).hostname);
+  const owner = await db.owner.upsert({
+    where: { domain },
+    update: { name: opts.brand, url },
+    create: { domain, name: opts.brand, url },
   });
   const payment = await db.payment.create({
     data: {

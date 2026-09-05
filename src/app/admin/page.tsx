@@ -1,18 +1,32 @@
 import { revalidatePath } from 'next/cache';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import Link from 'next/link';
 import { prisma } from '@/lib/db';
 import { ADMIN_COOKIE, isAdmin, isValidAdminToken } from '@/lib/admin';
 import { formatUsd, formatCount } from '@/lib/money';
 import { getMetrics } from '@/lib/metrics';
 import { adminActionSchema } from '@/lib/validation';
+import { rateLimit } from '@/lib/ratelimit';
+import { clientIpFrom } from '@/lib/clicks';
+import { reconcileRefund, reconcileAllPendingRefunds } from '@/lib/refunds';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { robots: { index: false, follow: false } };
 
-/** Exchanges the admin token for an httpOnly session cookie. */
+/**
+ * Exchanges the admin token for an httpOnly session cookie.
+ *
+ * Rate limited per IP so the token cannot be brute-forced by hammering this form — the
+ * constant-time comparison in isValidAdminToken only protects against a timing side-channel,
+ * not against sheer guess volume.
+ */
 async function signIn(formData: FormData) {
   'use server';
+
+  const ip = clientIpFrom(await headers());
+  const limited = rateLimit(`admin-signin:${ip}`, 5, 10 * 60_000);
+  if (!limited.ok) return;
+
   const token = String(formData.get('token') ?? '');
   if (!isValidAdminToken(token)) return;
 
@@ -67,6 +81,24 @@ async function moderate(formData: FormData) {
 
   revalidatePath('/admin');
   revalidatePath('/');
+}
+
+/** Retries the refund for one stuck payment. Safe to click more than once. */
+async function retryRefund(formData: FormData) {
+  'use server';
+  if (!(await isAdmin())) throw new Error('Not authorised');
+  const paymentId = String(formData.get('paymentId') ?? '');
+  if (!paymentId) throw new Error('Missing paymentId');
+  await reconcileRefund(paymentId);
+  revalidatePath('/admin');
+}
+
+/** Retries every payment currently stuck REFUND_PENDING. */
+async function retryAllRefunds() {
+  'use server';
+  if (!(await isAdmin())) throw new Error('Not authorised');
+  await reconcileAllPendingRefunds();
+  revalidatePath('/admin');
 }
 
 export default async function AdminPage() {
@@ -141,19 +173,41 @@ export default async function AdminPage() {
 
       {needsAttention.length > 0 && (
         <section className="mt-8">
-          <h2 className="mb-2 font-mono text-xs font-bold tracking-widest text-gold">
-            REFUNDS NEEDING ATTENTION
-          </h2>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <h2 className="font-mono text-xs font-bold tracking-widest text-gold">
+              REFUNDS NEEDING ATTENTION
+            </h2>
+            <form action={retryAllRefunds}>
+              <button
+                type="submit"
+                className="rounded border border-gold/60 px-2 py-1 font-mono text-[11px] text-gold hover:bg-gold/10"
+              >
+                RETRY ALL
+              </button>
+            </form>
+          </div>
           <p className="mb-2 text-xs text-muted">
-            Money was captured but the word was not won, and the automatic refund did not complete.
-            Refund these in your payment provider.
+            Money was captured but the word was not won. Retry asks the payment provider to
+            refund it again — safe to click more than once. If it keeps failing, refund it
+            directly in your payment provider&rsquo;s dashboard.
           </p>
           <ul className="divide-y divide-line rounded border border-gold/40">
             {needsAttention.map((payment) => (
-              <li key={payment.id} className="px-3 py-2 text-sm">
-                <span className="font-mono">{payment.providerReference}</span> ·{' '}
-                {formatUsd(payment.amountCents)} · {payment.owner.name} ·{' '}
-                {payment.word.display.toUpperCase()}
+              <li key={payment.id} className="flex flex-wrap items-center gap-2 px-3 py-2 text-sm">
+                <span className="min-w-0 flex-1 truncate">
+                  <span className="font-mono">{payment.providerReference}</span> ·{' '}
+                  {formatUsd(payment.amountCents)} · {payment.owner.name} ·{' '}
+                  {payment.word.display.toUpperCase()}
+                </span>
+                <form action={retryRefund}>
+                  <input type="hidden" name="paymentId" value={payment.id} />
+                  <button
+                    type="submit"
+                    className="rounded border border-line px-2 py-1 font-mono text-[11px] hover:border-muted"
+                  >
+                    RETRY
+                  </button>
+                </form>
               </li>
             ))}
           </ul>

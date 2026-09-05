@@ -3,7 +3,7 @@ import { prisma } from '@/lib/db';
 import { config } from '@/lib/config';
 import { checkoutSchema } from '@/lib/validation';
 import { validateWord } from '@/lib/word';
-import { validateDestinationUrl, faviconUrlFor } from '@/lib/url';
+import { validateDestinationUrl, faviconUrlFor, canonicalDomain } from '@/lib/url';
 import { minimumBidCents } from '@/lib/pricing';
 import { getPaymentProvider } from '@/lib/payments';
 import { rateLimit } from '@/lib/ratelimit';
@@ -83,12 +83,32 @@ export async function POST(request: Request) {
     );
   }
 
-  // Pull a short description off the destination so the buyer writes no profile.
-  // Best effort only — a slow or hostile site must never block a claim.
-  const metadata = input.description ? null : await fetchSiteMetadata(urlCheck.url);
+  // One Owner row per real-world brand, keyed by its canonical domain. A brand that bids
+  // again — on this word or another — reuses its existing identity instead of minting a new
+  // row each time, so "how much has this domain spent" is a plain join.
+  const domain = canonicalDomain(urlCheck.host);
+  const existingOwner = await prisma.owner.findUnique({ where: { domain } });
 
-  const owner = await prisma.owner.create({
-    data: {
+  if (existingOwner?.blocked) {
+    return NextResponse.json({ error: 'This brand has been suspended.' }, { status: 403 });
+  }
+
+  // Pull a short description off the destination so the buyer writes no profile. Best effort
+  // only — a slow or hostile site must never block a claim — and skipped when we already have
+  // one on file, so a later fetch failure never wipes out a good description.
+  const needsMetadata = !input.description && !existingOwner?.description;
+  const metadata = needsMetadata ? await fetchSiteMetadata(urlCheck.url) : null;
+
+  const owner = await prisma.owner.upsert({
+    where: { domain },
+    update: {
+      name: input.brandName,
+      url: urlCheck.url,
+      logoUrl: faviconUrlFor(urlCheck.url),
+      description: input.description || metadata?.description || existingOwner?.description || null,
+    },
+    create: {
+      domain,
       name: input.brandName,
       url: urlCheck.url,
       logoUrl: faviconUrlFor(urlCheck.url),

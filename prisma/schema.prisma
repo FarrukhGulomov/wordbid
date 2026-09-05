@@ -56,8 +56,13 @@ model Word {
 }
 
 /// A brand/product. Created at checkout; carries no ranking weight by itself.
+/// One row per real-world brand, identified by its canonical domain. Repeated checkouts from
+/// the same domain reuse this row rather than minting a new identity each time, so "how much
+/// has this brand spent" and "who bought again" are a plain join, not a fuzzy match.
 model Owner {
   id          String   @id @default(cuid())
+  /// Canonical identity: the destination's hostname with any "www." stripped, lowercased.
+  domain      String   @unique
   name        String
   url         String
   logoUrl     String?

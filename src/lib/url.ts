@@ -62,6 +62,14 @@ export function validateDestinationUrl(input: string): UrlValidation {
   return { ok: true, url: parsed.toString(), host };
 }
 
+/**
+ * Canonical identity for a destination: the hostname with a leading "www." stripped and
+ * lowercased. "devx.com" and "www.devx.com" are the same brand for our purposes.
+ */
+export function canonicalDomain(host: string): string {
+  return host.toLowerCase().replace(/^www\./, '');
+}
+
 /** Best-effort favicon for a destination, via a public resolver. Never blocks a claim. */
 export function faviconUrlFor(destination: string): string | null {
   try {
