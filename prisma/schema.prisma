@@ -1,0 +1,160 @@
+// OwnTheInternet — minimal data model.
+// Money is stored in integer cents everywhere. Never floats.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PaymentStatus {
+  PENDING
+  /// Money captured AND ownership granted.
+  CONFIRMED
+  /// Money captured but the word was lost to a competing takeover / blocked. Refund not yet completed.
+  REFUND_PENDING
+  /// Money captured, word not won, money returned to the buyer.
+  REFUNDED
+  /// Provider reported the payment did not complete. No money captured.
+  FAILED
+  CANCELED
+}
+
+enum ActivityType {
+  CLAIMED
+  TAKEOVER
+}
+
+/// A word that can be owned. `normalized` is the canonical key ("AI", "ai", " Ai " -> "ai").
+model Word {
+  id                 String     @id @default(cuid())
+  normalized         String     @unique
+  display            String
+  /// Value of the CURRENT confirmed ownership, in cents. 0 when unowned.
+  valueCents         Int        @default(0)
+  /// Points at the active Ownership row. Null when unowned.
+  currentOwnershipId String?    @unique
+  currentOwnership   Ownership? @relation("CurrentOwnership", fields: [currentOwnershipId], references: [id])
+  /// When the current ownership was confirmed. Deterministic tie-break for equal values.
+  ownedSince         DateTime?
+  /// Denormalised sum of valid clicks across all ownerships. Shown publicly.
+  clickCount         Int        @default(0)
+  /// Moderation: hidden from every public surface, cannot be claimed.
+  blocked            Boolean    @default(false)
+  createdAt          DateTime   @default(now())
+
+  ownerships Ownership[] @relation("WordOwnerships")
+  payments   Payment[]
+  activities Activity[]
+  clicks     Click[]
+
+  // Leaderboard read path: value DESC, then earliest ownership first.
+  @@index([blocked, valueCents, ownedSince])
+}
+
+/// A brand/product. Created at checkout; carries no ranking weight by itself.
+model Owner {
+  id          String   @id @default(cuid())
+  name        String
+  url         String
+  logoUrl     String?
+  description String?
+  blocked     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  ownerships Ownership[]
+  payments   Payment[]
+  activities Activity[]
+}
+
+/// One period during which an Owner held a Word. Never deleted — this is the history.
+model Ownership {
+  id          String    @id @default(cuid())
+  wordId      String
+  word        Word      @relation("WordOwnerships", fields: [wordId], references: [id])
+  ownerId     String
+  owner       Owner     @relation(fields: [ownerId], references: [id])
+  amountCents Int
+  startedAt   DateTime  @default(now())
+  endedAt     DateTime?
+  /// The confirmed payment that created this ownership. One payment => at most one ownership.
+  paymentId   String    @unique
+  payment     Payment   @relation(fields: [paymentId], references: [id])
+  /// Denormalised valid outbound clicks earned during this ownership.
+  clickCount  Int       @default(0)
+
+  clicks        Click[]
+  currentOfWord Word?   @relation("CurrentOwnership")
+
+  @@index([wordId, startedAt])
+}
+
+/// Intent to buy a word at a price. Ownership is created ONLY when status becomes CONFIRMED.
+model Payment {
+  id                 String        @id @default(cuid())
+  amountCents        Int
+  status             PaymentStatus @default(PENDING)
+  provider           String
+  /// Provider-side id (e.g. Stripe Checkout Session id). Unique => safe webhook lookup.
+  providerReference  String        @unique
+  wordId             String
+  word               Word          @relation(fields: [wordId], references: [id])
+  ownerId            String
+  owner              Owner         @relation(fields: [ownerId], references: [id])
+  /// Word value at the moment checkout started. Used to detect a competing takeover.
+  baselineValueCents Int           @default(0)
+  createdAt          DateTime      @default(now())
+  confirmedAt        DateTime?
+  refundedAt         DateTime?
+  /// Human-readable reason shown to the buyer when a captured payment did not win the word.
+  failureReason      String?
+
+  ownership Ownership?
+
+  @@index([status, createdAt])
+}
+
+/// Every webhook event we have already applied. The idempotency guard.
+model WebhookEvent {
+  id         String   @id @default(cuid())
+  provider   String
+  /// Provider-side event id.
+  eventId    String
+  receivedAt DateTime @default(now())
+
+  @@unique([provider, eventId])
+}
+
+/// One outbound click on an owner's link. `valid` false = deduped/bot, excluded from public counts.
+model Click {
+  id          String    @id @default(cuid())
+  ownershipId String
+  ownership   Ownership @relation(fields: [ownershipId], references: [id])
+  wordId      String
+  word        Word      @relation(fields: [wordId], references: [id])
+  /// Salted hash of IP + user agent. Never store raw IPs.
+  visitorHash String
+  valid       Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+
+  @@index([ownershipId, visitorHash, createdAt])
+  @@index([createdAt])
+}
+
+/// Public activity feed entries. Written in the same transaction as the ownership change.
+model Activity {
+  id                String       @id @default(cuid())
+  type              ActivityType
+  wordId            String
+  word              Word         @relation(fields: [wordId], references: [id])
+  ownerId           String
+  owner             Owner        @relation(fields: [ownerId], references: [id])
+  amountCents       Int
+  previousOwnerName String?
+  createdAt         DateTime     @default(now())
+
+  @@index([createdAt])
+}
