@@ -28,6 +28,15 @@ enum ActivityType {
   TAKEOVER
 }
 
+enum PaymentKind {
+  /// A claim or a takeover: another (or the first) owner wins the word. Ends the previous
+  /// ownership period, if any, and starts a brand-new one.
+  TAKEOVER
+  /// The CURRENT owner raises their own word's value to move up the leaderboard. The
+  /// ownership period never changes — see the comment on Payment.kind.
+  BOOST
+}
+
 /// A word that can be owned. `normalized` is the canonical key ("AI", "ai", " Ai " -> "ai").
 model Word {
   id                 String     @id @default(cuid())
@@ -137,6 +146,9 @@ model Payment {
   owner              Owner         @relation(fields: [ownerId], references: [id])
   /// Word value at the moment checkout started. Used to detect a competing takeover.
   baselineValueCents Int           @default(0)
+  /// TAKEOVER (default) grants/moves ownership. BOOST raises the CURRENT owner's own value —
+  /// amountCents is then the difference charged, never the resulting total. See confirmPayment.
+  kind               PaymentKind   @default(TAKEOVER)
   createdAt          DateTime      @default(now())
   confirmedAt        DateTime?
   refundedAt         DateTime?

@@ -43,3 +43,27 @@ export async function seedPendingPayment(opts: {
   });
   return { word, owner, payment };
 }
+
+/**
+ * Creates a PENDING BOOST payment against a word's existing owner. `amountCents` here is the
+ * difference to be charged, mirroring what the /api/boost route computes — never the resulting
+ * total value. The caller is responsible for the word already having a confirmed owner.
+ */
+export async function seedBoostPayment(opts: {
+  wordId: string;
+  ownerId: string;
+  amountCents: number;
+}) {
+  const word = await db.word.findUniqueOrThrow({ where: { id: opts.wordId } });
+  return db.payment.create({
+    data: {
+      amountCents: opts.amountCents,
+      provider: 'mock',
+      providerReference: `ref_${Math.random().toString(36).slice(2)}`,
+      wordId: opts.wordId,
+      ownerId: opts.ownerId,
+      baselineValueCents: word.valueCents,
+      kind: 'BOOST',
+    },
+  });
+}

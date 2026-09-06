@@ -1,12 +1,14 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getWordByNormalized } from '@/lib/queries';
+import { getWordByNormalized, getBoostCandidates } from '@/lib/queries';
 import { getOwnershipPerformance } from '@/lib/ownership-stats';
+import { boostTargetFor } from '@/lib/pricing';
 import { normalizeWord } from '@/lib/word';
 import { formatUsd, formatCount } from '@/lib/money';
 import { shortDate } from '@/lib/time';
 import { SITE_NAME } from '@/lib/config';
+import { BoostActions } from '@/components/BoostActions';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,6 +44,9 @@ export default async function OwnershipAnalyticsPage({ params }: Props) {
 
   const performance = await getOwnershipPerformance(word.currentOwnership.id);
   if (!performance) notFound();
+
+  const boostCandidates = word.rank ? await getBoostCandidates(word.rank) : [];
+  const boostTargets = boostCandidates.map(boostTargetFor);
 
   const display = word.display.toUpperCase();
   const owner = word.currentOwnership.owner;
@@ -104,6 +109,8 @@ export default async function OwnershipAnalyticsPage({ params }: Props) {
           </ul>
         </section>
       ) : null}
+
+      <BoostActions word={word.normalized} targets={boostTargets} />
 
       <p className="mt-10 text-sm">
         <Link

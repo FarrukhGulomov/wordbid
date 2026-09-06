@@ -63,6 +63,19 @@ export async function getLeaderboard(limit = 50, skip = 0): Promise<LeaderboardR
   });
 }
 
+/**
+ * Up to 3 real leaderboard rows above a given rank, to suggest as BOOST targets: the row
+ * directly above (cheapest to clear), the current #1, and the midpoint between them.
+ * Deduplicated by rank. Empty for rank 1 — there is nothing to boost above.
+ */
+export async function getBoostCandidates(rank: number): Promise<LeaderboardRow[]> {
+  if (rank <= 1) return [];
+  const skips = new Set([0, Math.floor((rank - 1) / 2), rank - 2]);
+  const rows = await Promise.all([...skips].map((skip) => getLeaderboard(1, skip)));
+  const byRank = new Map(rows.flat().map((row) => [row.rank, row]));
+  return [...byRank.values()].sort((a, b) => a.valueCents - b.valueCents);
+}
+
 export async function countOwnedWords(): Promise<number> {
   return prisma.word.count({ where: { blocked: false, currentOwnershipId: { not: null } } });
 }

@@ -30,25 +30,34 @@ export default async function CheckoutResultPage({
   if (!payment) notFound();
 
   const wordDisplay = payment.word.display.toUpperCase();
+  const isBoost = payment.kind === 'BOOST';
 
   if (payment.status === 'CONFIRMED') {
     const rank = await getRank(payment.wordId);
     const wordPath = `/word/${payment.word.normalized}`;
     // The canonical, absolute URL — this is what gets shared and copied, never the relative path.
     const canonicalUrl = `${config.siteUrl}${wordPath}`;
-    const shareText = `👑 We own "${wordDisplay}" on ${SITE_NAME}.`;
+    const shareText = isBoost
+      ? `🚀 We boosted "${wordDisplay}" on ${SITE_NAME}.`
+      : `👑 We own "${wordDisplay}" on ${SITE_NAME}.`;
 
     return (
       <div className="py-16 text-center">
-        <p className="font-mono text-xs tracking-widest text-live">PAYMENT CONFIRMED</p>
+        <p className="font-mono text-xs tracking-widest text-live">
+          {isBoost ? 'BOOST CONFIRMED' : 'PAYMENT CONFIRMED'}
+        </p>
         <h1 className="mt-3 font-mono text-3xl font-black tracking-tight sm:text-4xl">
-          YOU OWN {wordDisplay} 👑
+          {isBoost ? `${wordDisplay} BOOSTED 🚀` : `YOU OWN ${wordDisplay} 👑`}
         </h1>
         <p className="mt-4 text-lg">
-          {payment.owner.name} now owns {wordDisplay} on {SITE_NAME}.
+          {isBoost
+            ? `${payment.owner.name} paid ${formatUsd(payment.amountCents)} to raise ${wordDisplay}'s value.`
+            : `${payment.owner.name} now owns ${wordDisplay} on ${SITE_NAME}.`}
         </p>
         <p className="mt-1 text-sm text-muted">
-          {formatUsd(payment.amountCents)}
+          {/* A boost's amountCents is only the difference charged, not the resulting value —
+              show the word's live (post-boost) value here instead. */}
+          {formatUsd(isBoost ? payment.word.valueCents : payment.amountCents)}
           {rank ? (
             <>
               {' '}
@@ -74,24 +83,32 @@ export default async function CheckoutResultPage({
   }
 
   if (payment.status === 'REFUNDED' || payment.status === 'REFUND_PENDING') {
+    const retryPath = isBoost
+      ? `/word/${payment.word.normalized}/analytics`
+      : `/claim?word=${encodeURIComponent(payment.word.normalized)}`;
     return (
       <div className="py-16 text-center">
-        <p className="font-mono text-xs tracking-widest text-muted">WORD NOT WON</p>
+        <p className="font-mono text-xs tracking-widest text-muted">
+          {isBoost ? 'BOOST DID NOT APPLY' : 'WORD NOT WON'}
+        </p>
         <h1 className="mt-3 font-mono text-2xl font-black tracking-tight sm:text-3xl">
-          SOMEONE GOT {wordDisplay} FIRST
+          {isBoost ? `${wordDisplay} WAS NOT BOOSTED` : `SOMEONE GOT ${wordDisplay} FIRST`}
         </h1>
         <p className="mx-auto mt-4 max-w-md text-muted">
-          {payment.failureReason ?? 'This word was taken before your payment completed.'}{' '}
+          {payment.failureReason ??
+            (isBoost
+              ? 'This word changed hands before your boost completed.'
+              : 'This word was taken before your payment completed.')}{' '}
           {payment.status === 'REFUNDED'
             ? 'Your payment has been refunded in full.'
             : 'Your refund is being processed and will be returned in full.'}
         </p>
         <div className="mx-auto mt-8 flex max-w-sm flex-col gap-2">
           <Link
-            href={`/claim?word=${encodeURIComponent(payment.word.normalized)}`}
+            href={retryPath}
             className="rounded bg-gold px-4 py-2.5 font-mono text-sm font-bold text-ink transition hover:opacity-85"
           >
-            TAKE IT BACK
+            {isBoost ? 'SEE THE WORD PAGE' : 'TAKE IT BACK'}
           </Link>
           <Link href="/" className="text-sm text-muted underline underline-offset-2">
             See the leaderboard
@@ -102,12 +119,15 @@ export default async function CheckoutResultPage({
   }
 
   if (payment.status === 'FAILED' || payment.status === 'CANCELED') {
+    const retryPath = isBoost
+      ? `/word/${payment.word.normalized}/analytics`
+      : `/claim?word=${encodeURIComponent(payment.word.normalized)}`;
     return (
       <div className="py-16 text-center">
         <h1 className="font-mono text-2xl font-black tracking-tight">PAYMENT NOT COMPLETED</h1>
         <p className="mt-4 text-muted">You were not charged. Nothing changed.</p>
         <Link
-          href={`/claim?word=${encodeURIComponent(payment.word.normalized)}`}
+          href={retryPath}
           className="mt-8 inline-block rounded bg-gold px-4 py-2.5 font-mono text-sm font-bold text-ink transition hover:opacity-85"
         >
           TRY AGAIN

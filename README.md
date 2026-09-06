@@ -33,6 +33,25 @@ hold this in their head.
 Ranking is `current value DESC`, ties broken by the earlier confirmed ownership. Rank changes
 only after a payment is confirmed; nothing is reserved while a checkout is open.
 
+### Boost — raising your own rank
+
+A **takeover** is one brand replacing another: a new Ownership period starts, the old one ends,
+and the new owner's clicks/impressions start at zero. A **boost** is the opposite — the *current*
+owner raises their own word's value to move up the leaderboard, paying only the difference. It
+never changes who owns the word, never touches the ownership period, and never resets analytics.
+
+- `POST /api/boost` (`src/app/api/boost/route.ts`) takes only `{ word, targetValueCents }` — no
+  brand name, URL or description. The owner it charges is always looked up from the word's live
+  current ownership, never taken from the request, so a boost can never be attributed to the
+  wrong brand even though this product has no login.
+- `targetValueCents` must clear the same step `minimumBidCents` already uses for a takeover,
+  applied to the word's own current value — re-checked against the *live* value, same as a bid.
+- `confirmPayment`'s BOOST branch (`src/lib/ownership.ts`) sets the new value to the *live* value
+  plus the difference actually charged, never a value fixed at checkout time. That is what keeps
+  a boost racing a takeover on the same word transaction-safe: whichever commits first under the
+  row lock, the second always builds on top of what it just locked. If the word changed owner
+  before a boost confirms, the boost loses and is refunded, exactly like a losing takeover bid.
+
 ### Payment correctness
 
 1. **Verified.** The webhook signature is checked against the raw request body. Bad signature → 400.

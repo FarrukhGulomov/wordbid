@@ -18,3 +18,14 @@ export function minimumBidCents(currentValueCents: number): number {
 export function bidWins(bidCents: number, currentValueCents: number): boolean {
   return bidCents > currentValueCents;
 }
+
+export type BoostTarget = { rank: number; targetValueCents: number };
+
+/**
+ * The BOOST target for "move above this leaderboard row" — the same step minimumBidCents
+ * already uses for a takeover, just applied to a competitor's value instead of your own. The
+ * owner then pays only the difference between this target and their word's current value.
+ */
+export function boostTargetFor(row: { rank: number; valueCents: number }): BoostTarget {
+  return { rank: row.rank, targetValueCents: minimumBidCents(row.valueCents) };
+}

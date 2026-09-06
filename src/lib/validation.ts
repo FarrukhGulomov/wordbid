@@ -13,6 +13,14 @@ export const checkoutSchema = z.object({
 
 export type CheckoutInput = z.infer<typeof checkoutSchema>;
 
+export const boostSchema = z.object({
+  word: z.string().min(1).max(60),
+  /** The word's desired resulting value, in whole cents — not the difference charged. */
+  targetValueCents: z.number().int().positive(),
+});
+
+export type BoostInput = z.infer<typeof boostSchema>;
+
 export const adminActionSchema = z.object({
   action: z.enum(['block_word', 'unblock_word', 'block_owner']),
   id: z.string().min(1),

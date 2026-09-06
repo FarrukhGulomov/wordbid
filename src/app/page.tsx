@@ -45,6 +45,7 @@ export default async function HomePage() {
         </h2>
         <p className="mb-4 text-xs text-muted">
           Ranked by what the current owner paid. Pay more than the owner and the word is yours.
+          Ties go to the earlier confirmed bid.
         </p>
 
         {board.length === 0 ? (
