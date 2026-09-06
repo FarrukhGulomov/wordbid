@@ -24,6 +24,21 @@ const MAX_REDIRECTS = 3;
 
 export type SiteMetadata = { title: string | null; description: string | null };
 
+/**
+ * Node's fetch wraps every low-level failure (DNS, TLS, connection reset, timeout) in a generic
+ * `TypeError: fetch failed` — the real reason lives in `.cause`, sometimes nested more than one
+ * level deep (e.g. an AggregateError from trying multiple resolved addresses). Without unwrapping
+ * it, every distinct network failure logs as the same useless "fetch failed" string — which is
+ * exactly what made a real failure (uzum.uz) look identical to every other one in production.
+ */
+function describeError(err: unknown, depth = 0): string {
+  if (depth > 3 || !(err instanceof Error)) return String(err);
+  const code = (err as NodeJS.ErrnoException).code;
+  const label = code ? `${err.name}(${code}): ${err.message}` : `${err.name}: ${err.message}`;
+  const cause = (err as { cause?: unknown }).cause;
+  return cause ? `${label} <- ${describeError(cause, depth + 1)}` : label;
+}
+
 function decodeEntities(text: string): string {
   return text
     .replace(/&quot;/g, '"')
@@ -187,8 +202,7 @@ export async function fetchSiteMetadata(rawUrl: string): Promise<SiteMetadata> {
     // redirect this rejected all look identical as a bare null to the caller. Logging the actual
     // error (host + message only, never headers/body/cookies) is what makes a real-world failure
     // like this one diagnosable from Railway logs instead of a permanent mystery.
-    const reason = err instanceof Error ? err.message : String(err);
-    console.error(`fetchSiteMetadata: failed for ${validated.host}: ${reason}`);
+    console.error(`fetchSiteMetadata: failed for ${validated.host}: ${describeError(err)}`);
     return { title: null, description: null };
   } finally {
     clearTimeout(timer);

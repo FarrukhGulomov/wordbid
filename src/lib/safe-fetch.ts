@@ -1,5 +1,5 @@
 import dns from 'node:dns';
-import { Agent } from 'undici';
+import { Agent, fetch as undiciFetch } from 'undici';
 
 /**
  * SSRF-safe outbound fetch.
@@ -9,6 +9,18 @@ import { Agent } from 'undici';
  * does not catch that. This module checks every IP address a lookup actually returns, at the
  * moment the connection is made, not before it. That closes the time-of-check/time-of-use gap:
  * the address that gets validated is the exact address undici then connects to.
+ *
+ * This deliberately calls `fetch` from the `undici` package, NOT the global `fetch` Node.js
+ * provides built in. The two are backed by different, independently-versioned copies of undici —
+ * Node's global fetch runs on whatever undici ships inside that Node release, unrelated to the
+ * `undici` version in package.json. A `dispatcher`/`Agent` built from the npm package is not
+ * guaranteed binary-compatible with Node's own internal copy: on this project's pinned undici
+ * (8.10.2) against Node 22's bundled version, handing that Agent to the global fetch made EVERY
+ * outbound request throw immediately — before DNS, before any connection — with
+ * `InvalidArgumentError: invalid onRequestStart method`. This was indistinguishable from a real
+ * network failure once wrapped in fetch's generic "fetch failed", and is the actual reason no
+ * owner ever got a fetched description, regardless of the destination site. Using the fetch that
+ * ships with the same `Agent` implementation keeps both sides on one consistent internal API.
  *
  * Use `safeFetch` for any request driven by a user-supplied URL that runs on the server.
  */
@@ -101,5 +113,6 @@ const safeDispatcher = new Agent({
  * hostnames) with `validateDestinationUrl` — this only guards the DNS-to-socket step.
  */
 export function safeFetch(url: string, init: RequestInit = {}): Promise<Response> {
-  return fetch(url, { ...init, dispatcher: safeDispatcher } as RequestInit);
+  const undiciInit = { ...init, dispatcher: safeDispatcher } as unknown as Parameters<typeof undiciFetch>[1];
+  return undiciFetch(url, undiciInit) as unknown as Promise<Response>;
 }

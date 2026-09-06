@@ -170,6 +170,30 @@ describe('fetchSiteMetadata', () => {
     fetchSpy.mockRestore();
     errorSpy.mockRestore();
   });
+
+  // Regression for the real uzum.uz bug: Node's fetch wraps every low-level network failure in a
+  // generic `TypeError: fetch failed`, with the actual reason (DNS, TLS, connection reset) nested
+  // in `.cause`. The previous fix only logged `err.message`, so production logs showed the same
+  // useless "fetch failed" for uzum.uz that a bare `catch {}` would have — the diagnostic gap was
+  // never actually closed. This proves the nested cause is unwrapped into the log line.
+  it('unwraps a nested fetch-failed cause instead of logging the generic wrapper message', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const cause = Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' });
+    const wrapped = Object.assign(new TypeError('fetch failed'), { cause });
+    const fetchSpy = vi.spyOn(safeFetchModule, 'safeFetch').mockRejectedValue(wrapped);
+
+    const result = await fetchSiteMetadata('https://uzum.uz');
+
+    expect(result).toEqual({ title: null, description: null });
+    const logged = errorSpy.mock.calls.map((call) => call.join(' ')).join('\n');
+    expect(logged).toContain('uzum.uz');
+    expect(logged).toContain('fetch failed');
+    expect(logged).toContain('ECONNRESET');
+    expect(logged).toContain('read ECONNRESET');
+
+    fetchSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
 });
 
 describe('fetchSiteMetadata — redirect handling', () => {
