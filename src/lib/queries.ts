@@ -204,6 +204,29 @@ export async function isFirstClaimPayment(paymentId: string): Promise<boolean> {
   return earlierCount === 0;
 }
 
+/**
+ * True when a TAKEOVER payment's new owner previously owned this exact word before losing it —
+ * a reclaim, not a takeover from a stranger. Used only for share copy: a founder retaking their
+ * own former word deserves different framing than one taking a word from a different brand.
+ * Never true for the word's very first claim (there is no earlier ownership to reclaim from).
+ */
+export async function isReclaimPayment(paymentId: string): Promise<boolean> {
+  const ownership = await prisma.ownership.findUnique({
+    where: { paymentId },
+    select: { wordId: true, ownerId: true, startedAt: true },
+  });
+  if (!ownership) return false;
+  const earlierOwnOwnership = await prisma.ownership.findFirst({
+    where: {
+      wordId: ownership.wordId,
+      ownerId: ownership.ownerId,
+      startedAt: { lt: ownership.startedAt },
+    },
+    select: { id: true },
+  });
+  return earlierOwnOwnership !== null;
+}
+
 export type CompetitiveSpend = {
   /** Ownership changes after the first claim — a takeover or a reclaim, same thing here. */
   takeoverCount: number;

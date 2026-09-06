@@ -2,8 +2,9 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { formatUsd } from '@/lib/money';
-import { getRank, isFirstClaimPayment } from '@/lib/queries';
+import { getRank, isFirstClaimPayment, isReclaimPayment } from '@/lib/queries';
 import { config, SITE_NAME } from '@/lib/config';
+import { buildShareText } from '@/lib/share-copy';
 import { PendingRefresh } from '@/components/PendingRefresh';
 import { ShareButtons } from '@/components/ShareButtons';
 
@@ -37,15 +38,21 @@ export default async function CheckoutResultPage({
     const wordPath = `/word/${payment.word.normalized}`;
     // The canonical, absolute URL — this is what gets shared and copied, never the relative path.
     const canonicalUrl = `${config.siteUrl}${wordPath}`;
-    // A first claim and a takeover/reclaim are different wins and get different copy — see
-    // isFirstClaimPayment. Meaningless (and skipped) for a boost, which never creates its own
-    // ownership.
+    // A first claim, a reclaim (this same brand had it before) and a takeover from a different
+    // brand are three different wins with three different share tones — see isFirstClaimPayment
+    // and isReclaimPayment. Both are meaningless (and skipped) for a boost, which never creates
+    // its own ownership.
     const isFirstClaim = isBoost ? false : await isFirstClaimPayment(payment.id);
-    const shareText = isBoost
-      ? `🚀 We boosted "${wordDisplay}" on ${SITE_NAME}.`
-      : isFirstClaim
-        ? `We own ${wordDisplay} on ${SITE_NAME} 👑`
-        : `We just took ${wordDisplay} on ${SITE_NAME} 👑`;
+    const isReclaim = isBoost || isFirstClaim ? false : await isReclaimPayment(payment.id);
+    const shareText = buildShareText(
+      isBoost
+        ? { kind: 'boost', word: wordDisplay, brandName: payment.owner.name, rank }
+        : isFirstClaim
+          ? { kind: 'claim', word: wordDisplay, description: payment.owner.description }
+          : isReclaim
+            ? { kind: 'reclaim', word: wordDisplay, brandName: payment.owner.name }
+            : { kind: 'takeover', word: wordDisplay, brandName: payment.owner.name },
+    );
 
     return (
       <div className="py-16 text-center">

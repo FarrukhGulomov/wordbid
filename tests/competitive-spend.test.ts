@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach, afterAll } from 'vitest';
 import { confirmPayment } from '@/lib/ownership';
-import { isFirstClaimPayment, getWordCompetitiveSpend } from '@/lib/queries';
+import { isFirstClaimPayment, isReclaimPayment, getWordCompetitiveSpend } from '@/lib/queries';
 import { db, resetDb, seedPendingPayment, seedBoostPayment } from './helpers';
 
 beforeEach(resetDb);
@@ -41,6 +41,44 @@ describe('isFirstClaimPayment', () => {
     await confirmPayment('mock', 'e2', boost.providerReference, db);
 
     expect(await isFirstClaimPayment(boost.id)).toBe(false);
+  });
+});
+
+describe('isReclaimPayment', () => {
+  it('is false for a word\'s very first claim', async () => {
+    const { payment } = await claim('ai', 'AcmeAI', 1000, 'e1');
+    expect(await isReclaimPayment(payment.id)).toBe(false);
+  });
+
+  it('is false for a takeover by a brand that never owned this word before', async () => {
+    await claim('coding', 'DevX', 1000, 'e1');
+    const second = await seedPendingPayment({ word: 'coding', brand: 'CodeAI', amountCents: 2000 });
+    await confirmPayment('mock', 'e2', second.payment.providerReference, db);
+
+    expect(await isReclaimPayment(second.payment.id)).toBe(false);
+  });
+
+  it('is true when the same brand takes the word back after losing it', async () => {
+    const first = await claim('coding', 'DevX', 1000, 'e1');
+    const takeover = await seedPendingPayment({ word: 'coding', brand: 'CodeAI', amountCents: 2000 });
+    await confirmPayment('mock', 'e2', takeover.payment.providerReference, db);
+    const reclaim = await seedPendingPayment({
+      word: 'coding',
+      brand: 'DevX',
+      amountCents: 3000,
+      url: first.owner.url,
+    });
+    await confirmPayment('mock', 'e3', reclaim.payment.providerReference, db);
+
+    expect(await isReclaimPayment(reclaim.payment.id)).toBe(true);
+  });
+
+  it('is false for a BOOST payment, which never creates its own ownership', async () => {
+    const { word, owner } = await claim('ai', 'AcmeAI', 1000, 'e1');
+    const boost = await seedBoostPayment({ wordId: word.id, ownerId: owner.id, amountCents: 500 });
+    await confirmPayment('mock', 'e2', boost.providerReference, db);
+
+    expect(await isReclaimPayment(boost.id)).toBe(false);
   });
 });
 
