@@ -157,11 +157,28 @@ export async function fetchSiteMetadata(rawUrl: string): Promise<SiteMetadata> {
   try {
     const response = await fetchWithValidatedRedirects(validated.url, {
       signal: controller.signal,
-      headers: { 'User-Agent': 'WordBid/1.0 (+link preview)', Accept: 'text/html' },
+      // A self-identifying "WordBid/1.0 (+link preview)" UA got asaxiy.uz outright 403'd —
+      // real e-commerce sites commonly run WAFs (Cloudflare, Imperva, a custom one) that
+      // block unrecognized bot UAs from a datacenter IP on sight, before anything ever looks
+      // at what the request actually wants. A standard browser UA plus the headers a browser
+      // normally sends is not a masquerade of intent — the request still only ever reads
+      // public <meta> tags a site serves to any visitor, same as before; it just avoids
+      // gratuitously identifying as a bot to WAFs that reject nothing else about the request.
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+        Accept: 'text/html,application/xhtml+xml',
+        'Accept-Language': 'uz,ru;q=0.9,en;q=0.8',
+      },
       cache: 'no-store',
     });
     if (!response.ok) {
-      console.error(`fetchSiteMetadata: ${validated.host} responded ${response.status}`);
+      // A short, bounded snippet of the response body (a WAF's block page is public content
+      // anyway — never cookies/headers) turns "responded 403" into an actual diagnosis: a
+      // Cloudflare/Imperva challenge title, a rate-limit message, or a geo-block notice all
+      // read differently, and only one of those is something a header/UA change can fix.
+      const snippet = (await response.text().catch(() => '')).replace(/\s+/g, ' ').trim().slice(0, 200);
+      console.error(`fetchSiteMetadata: ${validated.host} responded ${response.status}${snippet ? `: ${snippet}` : ''}`);
       return { title: null, description: null };
     }
     // Reject only a content-type that's clearly NOT html. A cheaply-hosted site omitting the

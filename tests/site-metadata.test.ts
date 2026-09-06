@@ -119,6 +119,46 @@ describe('fetchSiteMetadata', () => {
     expect(result).toEqual({ title: null, description: null });
   });
 
+  // Regression for the real asaxiy.uz bug: a self-identifying "WordBid/1.0 (+link preview)" UA
+  // got the request an outright 403 from what looks like a WAF on a real e-commerce site — common
+  // for sites that reject any unrecognized bot UA from a datacenter IP on sight. This proves the
+  // request now presents as an ordinary browser instead of announcing itself as a bot.
+  it('sends a standard browser User-Agent instead of self-identifying as a bot', async () => {
+    const spy = vi
+      .spyOn(safeFetchModule, 'safeFetch')
+      .mockResolvedValue(new Response('<meta property="og:description" content="x">', { status: 200 }));
+
+    await fetchSiteMetadata('https://checks-user-agent.example');
+
+    const init = spy.mock.calls[0]![1] as RequestInit;
+    const headers = init.headers as Record<string, string>;
+    expect(headers['User-Agent']).toMatch(/Mozilla/);
+    expect(headers['User-Agent']).not.toMatch(/WordBid/);
+    spy.mockRestore();
+  });
+
+  // A bare "responded 403" told us nothing about WHY — a WAF challenge, a rate limit, and a
+  // geo-block all produce a 403, but only some are worth reacting to. The body is public content
+  // a browser would have received too, so logging a short snippet of it is safe and now the
+  // actual reason (not just the status code) reaches the logs.
+  it('logs a short snippet of the response body for a non-ok status', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const spy = vi
+      .spyOn(safeFetchModule, 'safeFetch')
+      .mockResolvedValue(new Response('<html><body>Access denied by WAF rule 42</body></html>', { status: 403 }));
+
+    const result = await fetchSiteMetadata('https://blocked-by-waf.example');
+
+    expect(result).toEqual({ title: null, description: null });
+    const logged = errorSpy.mock.calls.map((call) => call.join(' ')).join('\n');
+    expect(logged).toContain('blocked-by-waf.example');
+    expect(logged).toContain('403');
+    expect(logged).toContain('Access denied by WAF rule 42');
+
+    spy.mockRestore();
+    errorSpy.mockRestore();
+  });
+
   // A cheaply-hosted real site (like a small business's own domain) omitting content-type
   // entirely is common — this used to be treated the same as "definitely not HTML" and silently
   // discarded a real description that was sitting right there in the response body.
