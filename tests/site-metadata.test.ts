@@ -118,6 +118,58 @@ describe('fetchSiteMetadata', () => {
     const result = await fetchSiteMetadata('http://localhost:9999');
     expect(result).toEqual({ title: null, description: null });
   });
+
+  // A cheaply-hosted real site (like a small business's own domain) omitting content-type
+  // entirely is common — this used to be treated the same as "definitely not HTML" and silently
+  // discarded a real description that was sitting right there in the response body.
+  it('still parses a response that has no content-type header at all', async () => {
+    // The Response constructor synthesizes a "text/plain" content-type for a plain string body
+    // when none is given — a real network response with a genuinely absent header wouldn't have
+    // one at all, so the header is removed explicitly to simulate that accurately.
+    const response = new Response(
+      '<meta property="og:description" content="Reached with no content-type header.">',
+      { status: 200 },
+    );
+    response.headers.delete('content-type');
+    const spy = vi.spyOn(safeFetchModule, 'safeFetch').mockResolvedValue(response);
+
+    const result = await fetchSiteMetadata('https://no-content-type.example');
+
+    expect(result.description).toBe('Reached with no content-type header.');
+    spy.mockRestore();
+  });
+
+  it('still rejects a response whose content-type is clearly not HTML', async () => {
+    const spy = vi
+      .spyOn(safeFetchModule, 'safeFetch')
+      .mockResolvedValue(
+        new Response('{"not": "html"}', { status: 200, headers: { 'content-type': 'application/json' } }),
+      );
+
+    const result = await fetchSiteMetadata('https://json-response.example');
+
+    expect(result).toEqual({ title: null, description: null });
+    spy.mockRestore();
+  });
+
+  // The real bug this session investigated could never have been diagnosed with a bare `catch {}`
+  // — every distinct failure mode looked identical from the outside. This proves the real error
+  // reaches the logs instead of vanishing.
+  it('logs the real failure reason instead of swallowing it silently', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const fetchSpy = vi.spyOn(safeFetchModule, 'safeFetch').mockRejectedValue(new Error('socket hang up'));
+
+    const result = await fetchSiteMetadata('https://flaky-host.example');
+
+    expect(result).toEqual({ title: null, description: null });
+    expect(errorSpy).toHaveBeenCalled();
+    const logged = errorSpy.mock.calls.map((call) => call.join(' ')).join('\n');
+    expect(logged).toContain('flaky-host.example');
+    expect(logged).toContain('socket hang up');
+
+    fetchSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
 });
 
 describe('fetchSiteMetadata — redirect handling', () => {

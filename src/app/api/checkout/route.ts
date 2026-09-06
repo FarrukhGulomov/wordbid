@@ -94,19 +94,27 @@ export async function POST(request: Request) {
   }
 
   // Pull a short description off the destination so the buyer writes no profile. Best effort
-  // only — a slow or hostile site must never block a claim — and only attempted for a brand-new
-  // owner: an existing owner's profile is never touched by an unauthenticated checkout (see the
-  // upsert below), so there is nothing to fill in for one.
-  const needsMetadata = !existingOwner && !input.description;
+  // only — a slow or hostile site must never block a claim. Attempted for a brand-new owner, or
+  // for an existing owner that has never had one — e.g. its very first claim's fetch failed
+  // (a timeout, a redirect, a since-fixed parser bug) and left description permanently null.
+  // Skipped whenever a description is already on file, so a working one is never re-fetched.
+  const needsMetadata = !input.description && (!existingOwner || !existingOwner.description);
   const metadata = needsMetadata ? await fetchSiteMetadata(urlCheck.url) : null;
 
   // An unauthenticated checkout must never be able to overwrite an existing brand's identity —
-  // name, URL, logo, description — just by submitting the same domain again; anyone can type in
-  // any domain, so "same domain" is not proof of "same person". An existing Owner is reused
-  // as-is; only a genuinely new domain gets its profile populated from this checkout.
+  // name, URL, logo — just by submitting the same domain again; anyone can type in any domain,
+  // so "same domain" is not proof of "same person". Those three are never touched here for an
+  // existing owner. description is the one exception, and only in the direction of filling a
+  // real gap: if the existing owner has no description yet, this backfills it from that same
+  // owner's own domain (or the buyer's own submitted text) — the same trusted source the first
+  // claim would have used had its fetch succeeded. An existing, already-set description is never
+  // replaced, so this can never be used to overwrite one brand's story with another's.
+  const backfillDescription =
+    existingOwner && !existingOwner.description ? input.description || metadata?.description || null : null;
+
   const owner = await prisma.owner.upsert({
     where: { domain },
-    update: {},
+    update: backfillDescription ? { description: backfillDescription } : {},
     create: {
       domain,
       name: input.brandName,

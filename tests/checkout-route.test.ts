@@ -181,6 +181,91 @@ describe('POST /api/checkout — owner identity', () => {
     expect(owner.url).toBe('https://brandnew.example/');
   });
 
+  // Regression for the real sindr.uz bug: an Owner created by an earlier checkout whose metadata
+  // fetch failed (a timeout, a redirect, or — before it was fixed — the attribute-order parser
+  // bug) was left with description permanently null. Because an existing Owner is never
+  // refetched, that row could never self-heal even after the underlying bug was fixed — the
+  // fetch that could have filled the gap was skipped by the same check meant to protect the
+  // owner's identity. This proves a null description gets backfilled instead of staying stuck.
+  it('backfills a missing description on an existing Owner instead of leaving it stuck at null forever', async () => {
+    // First claim: a real Owner row for this domain, but with no description — standing in for
+    // any earlier checkout whose metadata fetch failed for any reason.
+    await checkout({
+      word: 'ai',
+      brandName: 'Sindr',
+      url: 'https://sindr.uz',
+      amountCents: 1000,
+    });
+    const before = await db.owner.findUniqueOrThrow({ where: { domain: 'sindr.uz' } });
+    expect(before.description).toBeNull();
+
+    // Second claim, same domain, no description submitted either — but this time the fetch
+    // succeeds (simulating the bug now being fixed, or the site simply being reachable this
+    // time). The gap should be filled in.
+    const spy = vi
+      .spyOn(siteMetadata, 'fetchSiteMetadata')
+      .mockResolvedValue({ title: 'Sindr', description: 'Real description fetched from sindr.uz.' });
+
+    const second = await checkout({
+      word: 'coding',
+      brandName: 'Sindr Rebranded',
+      url: 'https://sindr.uz',
+      amountCents: 1000,
+    });
+    expect(second.status).toBe(200);
+    expect(spy).toHaveBeenCalledTimes(1);
+    spy.mockRestore();
+
+    const after = await db.owner.findUniqueOrThrow({ where: { domain: 'sindr.uz' } });
+    expect(after.description).toBe('Real description fetched from sindr.uz.');
+    // Identity protection is untouched: name, url and logo from the FIRST claim still stand,
+    // even though this second checkout tried to submit a different brand name.
+    expect(after.name).toBe('Sindr');
+    expect(after.url).toBe(before.url);
+    expect(after.logoUrl).toBe(before.logoUrl);
+  });
+
+  it('never touches a description that is already set, even on a later checkout for the same domain', async () => {
+    await checkout({
+      word: 'ai',
+      brandName: 'Acme',
+      url: 'https://devx.com',
+      amountCents: 1000,
+      description: 'Already have one.',
+    });
+
+    const spy = vi.spyOn(siteMetadata, 'fetchSiteMetadata');
+    await checkout({
+      word: 'coding',
+      brandName: 'Acme',
+      url: 'https://devx.com',
+      amountCents: 1000,
+    });
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+
+    const owner = await db.owner.findUniqueOrThrow({ where: { domain: 'devx.com' } });
+    expect(owner.description).toBe('Already have one.');
+  });
+
+  it('a brand-new domain with a real successful metadata fetch gets its description saved', async () => {
+    const spy = vi
+      .spyOn(siteMetadata, 'fetchSiteMetadata')
+      .mockResolvedValue({ title: 'Brand New Co', description: 'What Brand New Co actually does.' });
+
+    const response = await checkout({
+      word: 'ai',
+      brandName: 'Brand New Co',
+      url: 'https://brand-new-co.example',
+      amountCents: 1000,
+    });
+    expect(response.status).toBe(200);
+    spy.mockRestore();
+
+    const owner = await db.owner.findUniqueOrThrow({ where: { domain: 'brand-new-co.example' } });
+    expect(owner.description).toBe('What Brand New Co actually does.');
+  });
+
   it('never refetches site metadata for an existing domain, even with no description submitted', async () => {
     await checkout({
       word: 'ai',

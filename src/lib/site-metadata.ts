@@ -15,7 +15,10 @@ import { safeFetch } from './safe-fetch';
  * Any failure returns nulls. Fetching metadata must never block a claim.
  */
 
-const TIMEOUT_MS = 3000;
+// Covers the whole request including any validated redirect hops — generous enough for a TLS
+// handshake plus a hop or two to a small or geographically distant host, which 3s was too tight
+// for in practice.
+const TIMEOUT_MS = 5000;
 const MAX_BYTES = 100_000;
 const MAX_REDIRECTS = 3;
 
@@ -142,8 +145,16 @@ export async function fetchSiteMetadata(rawUrl: string): Promise<SiteMetadata> {
       headers: { 'User-Agent': 'WordBid/1.0 (+link preview)', Accept: 'text/html' },
       cache: 'no-store',
     });
-    if (!response.ok) return { title: null, description: null };
-    if (!(response.headers.get('content-type') || '').includes('text/html')) {
+    if (!response.ok) {
+      console.error(`fetchSiteMetadata: ${validated.host} responded ${response.status}`);
+      return { title: null, description: null };
+    }
+    // Reject only a content-type that's clearly NOT html. A cheaply-hosted site omitting the
+    // header entirely (common on small/shared hosting) is not reason enough to give up — the
+    // bytes are still checked for real <meta> tags either way, never rendered or executed.
+    const contentType = response.headers.get('content-type');
+    if (contentType && !contentType.includes('text/html')) {
+      console.error(`fetchSiteMetadata: ${validated.host} sent non-HTML content-type "${contentType}"`);
       return { title: null, description: null };
     }
 
@@ -171,7 +182,13 @@ export async function fetchSiteMetadata(rawUrl: string): Promise<SiteMetadata> {
     );
 
     return parseSiteMetadata(html);
-  } catch {
+  } catch (err) {
+    // Never let the real reason vanish silently — a DNS failure, TLS error, timeout/abort, or a
+    // redirect this rejected all look identical as a bare null to the caller. Logging the actual
+    // error (host + message only, never headers/body/cookies) is what makes a real-world failure
+    // like this one diagnosable from Railway logs instead of a permanent mystery.
+    const reason = err instanceof Error ? err.message : String(err);
+    console.error(`fetchSiteMetadata: failed for ${validated.host}: ${reason}`);
     return { title: null, description: null };
   } finally {
     clearTimeout(timer);
