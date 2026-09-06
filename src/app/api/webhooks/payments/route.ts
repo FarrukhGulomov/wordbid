@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getPaymentProvider } from '@/lib/payments';
 import { confirmPayment, failPayment } from '@/lib/ownership';
 import { reconcileRefund } from '@/lib/refunds';
+import { getNotificationProvider } from '@/lib/notifications';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -39,6 +40,17 @@ export async function POST(request: Request) {
   }
 
   const result = await confirmPayment(provider.name, event.eventId, event.reference);
+
+  if (result.outcome === 'won' && result.notification) {
+    // Best-effort, outside the payment transaction: a notification failure must never look like
+    // a payment failure, and must never retry the whole webhook (which would just re-attempt an
+    // already-applied ownership change). See src/lib/notifications for the provider contract.
+    try {
+      await getNotificationProvider().sendTakeoverNotice(result.notification);
+    } catch (err) {
+      console.error('webhook: takeover notification failed', err);
+    }
+  }
 
   if (result.outcome === 'lost') {
     // The buyer paid but a competing takeover landed first. Return the money now. If this

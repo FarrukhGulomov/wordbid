@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { revalidatePath } from 'next/cache';
+import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { formatUsd } from '@/lib/money';
@@ -7,8 +9,35 @@ import { config, SITE_NAME } from '@/lib/config';
 import { buildShareText } from '@/lib/share-copy';
 import { PendingRefresh } from '@/components/PendingRefresh';
 import { ShareButtons } from '@/components/ShareButtons';
+import { NotifyEmailForm } from '@/components/NotifyEmailForm';
+import { notifyEmailSchema } from '@/lib/validation';
+import { setOwnerNotifyEmail } from '@/lib/notify-email';
+import { rateLimit } from '@/lib/ratelimit';
+import { clientIpFrom } from '@/lib/clicks';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * Lets a buyer opt in to a takeover notice AFTER their payment confirms — see
+ * src/lib/notify-email.ts for why `paymentId` alone is an appropriate, minimal proof of "this is
+ * the same buyer" for this product's no-login threat model.
+ */
+async function setNotifyEmail(formData: FormData) {
+  'use server';
+
+  const ip = clientIpFrom(await headers());
+  const limited = rateLimit(`notify-email:${ip}`, 10, 10 * 60_000);
+  if (!limited.ok) return;
+
+  const parsed = notifyEmailSchema.safeParse({
+    paymentId: formData.get('paymentId'),
+    email: formData.get('email'),
+  });
+  if (!parsed.success) return;
+
+  await setOwnerNotifyEmail(parsed.data.paymentId, parsed.data.email);
+  revalidatePath('/checkout/result');
+}
 
 /**
  * Where the buyer lands after paying.
@@ -97,6 +126,19 @@ export default async function CheckoutResultPage({
             See the leaderboard
           </Link>
         </div>
+
+        {/* Optional, and only ever offered AFTER payment — never a condition of checking out.
+            A boost never changes who owns the word, so there is nothing to be notified about. */}
+        {!isBoost && (
+          <div className="mx-auto mt-8 max-w-sm text-left">
+            <NotifyEmailForm
+              action={setNotifyEmail}
+              paymentId={payment.id}
+              currentEmail={payment.owner.notifyEmail}
+              wordDisplay={wordDisplay}
+            />
+          </div>
+        )}
       </div>
     );
   }

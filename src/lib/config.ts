@@ -34,6 +34,10 @@ export const config = {
   get paymentProvider(): string {
     return process.env.PAYMENT_PROVIDER || 'mock';
   },
+  /** "console" (default, logs only) or "resend" — see src/lib/notifications. */
+  get notificationProvider(): string {
+    return process.env.NOTIFICATION_PROVIDER || 'console';
+  },
 } as const;
 
 export const SITE_NAME = 'WordBid';

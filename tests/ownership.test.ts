@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach, afterAll } from 'vitest';
 import { confirmPayment, failPayment } from '@/lib/ownership';
-import { db, resetDb, seedPendingPayment } from './helpers';
+import { db, resetDb, seedPendingPayment, seedBoostPayment } from './helpers';
 
 beforeEach(resetDb);
 afterAll(async () => {
@@ -67,6 +67,124 @@ describe('confirmPayment — takeover', () => {
     const activity = await db.activity.findFirstOrThrow({ orderBy: { createdAt: 'desc' } });
     expect(activity.type).toBe('TAKEOVER');
     expect(activity.previousOwnerName).toBe('DevX');
+  });
+});
+
+describe('confirmPayment — reclaim', () => {
+  it('records RECLAIM, not TAKEOVER, when a brand takes back a word it owned before', async () => {
+    const first = await seedPendingPayment({
+      word: 'coding',
+      brand: 'DevX',
+      amountCents: 1000,
+      url: 'https://devx.example',
+    });
+    await confirmPayment('mock', 'evt_1', first.payment.providerReference, db);
+
+    const stolen = await seedPendingPayment({ word: 'coding', brand: 'CodeAI', amountCents: 1050 });
+    await confirmPayment('mock', 'evt_2', stolen.payment.providerReference, db);
+
+    // DevX takes it back — same domain, so seedPendingPayment reuses the same Owner row.
+    const back = await seedPendingPayment({
+      word: 'coding',
+      brand: 'DevX',
+      amountCents: 2000,
+      url: 'https://devx.example',
+    });
+    const result = await confirmPayment('mock', 'evt_3', back.payment.providerReference, db);
+    expect(result.outcome).toBe('won');
+
+    const activity = await db.activity.findFirstOrThrow({ orderBy: { createdAt: 'desc' } });
+    expect(activity.type).toBe('RECLAIM');
+    expect(activity.previousOwnerName).toBe('CodeAI');
+  });
+
+  it('treats the SAME brand raising its own still-active word as a reclaim, and never notifies itself', async () => {
+    const { payment, owner } = await seedPendingPayment({
+      word: 'coding',
+      brand: 'DevX',
+      amountCents: 1000,
+      url: 'https://devx.example',
+    });
+    await confirmPayment('mock', 'evt_1', payment.providerReference, db);
+    await db.owner.update({ where: { id: owner.id }, data: { notifyEmail: 'founder@devx.example' } });
+
+    // Same domain -> same Owner row -> the "previous" owner IS the new owner.
+    const again = await seedPendingPayment({
+      word: 'coding',
+      brand: 'DevX',
+      amountCents: 2000,
+      url: 'https://devx.example',
+    });
+    const result = await confirmPayment('mock', 'evt_2', again.payment.providerReference, db);
+    expect(result.outcome).toBe('won');
+    if (result.outcome === 'won') expect(result.notification).toBeNull();
+
+    const activity = await db.activity.findFirstOrThrow({ orderBy: { createdAt: 'desc' } });
+    expect(activity.type).toBe('RECLAIM');
+  });
+});
+
+describe('confirmPayment — takeover notification', () => {
+  it('prepares a notification when the outgoing brand opted in', async () => {
+    const first = await seedPendingPayment({
+      word: 'coding',
+      brand: 'DevX',
+      amountCents: 1000,
+      url: 'https://devx.example',
+    });
+    await confirmPayment('mock', 'evt_1', first.payment.providerReference, db);
+    await db.owner.update({ where: { id: first.owner.id }, data: { notifyEmail: 'founder@devx.example' } });
+
+    const second = await seedPendingPayment({ word: 'coding', brand: 'CodeAI', amountCents: 1050 });
+    const result = await confirmPayment('mock', 'evt_2', second.payment.providerReference, db);
+    expect(result.outcome).toBe('won');
+    if (result.outcome !== 'won') return;
+
+    expect(result.notification).toMatchObject({
+      toEmail: 'founder@devx.example',
+      wordDisplay: 'CODING',
+      wordNormalized: 'coding',
+      previousOwnerName: 'DevX',
+      newOwnerName: 'CodeAI',
+      previousClicks: 0,
+      previousImpressions: 0,
+    });
+    // The reclaim price is the live minimum bid over the NEW value the takeover just set.
+    expect(result.notification!.reclaimPriceCents).toBeGreaterThan(1050);
+  });
+
+  it('never prepares a notification when the outgoing brand never opted in', async () => {
+    const first = await seedPendingPayment({ word: 'coding', brand: 'DevX', amountCents: 1000 });
+    await confirmPayment('mock', 'evt_1', first.payment.providerReference, db);
+
+    const second = await seedPendingPayment({ word: 'coding', brand: 'CodeAI', amountCents: 1050 });
+    const result = await confirmPayment('mock', 'evt_2', second.payment.providerReference, db);
+    expect(result.outcome).toBe('won');
+    if (result.outcome === 'won') expect(result.notification).toBeNull();
+  });
+
+  it('never prepares a notification on a brand-new domain\'s very first claim', async () => {
+    const { payment } = await seedPendingPayment({ word: 'coding', brand: 'DevX', amountCents: 1000 });
+    const result = await confirmPayment('mock', 'evt_1', payment.providerReference, db);
+    expect(result.outcome).toBe('won');
+    if (result.outcome === 'won') expect(result.notification).toBeNull();
+  });
+});
+
+describe('confirmPayment — boost activity', () => {
+  it('records a BOOST activity entry for the difference actually charged', async () => {
+    const first = await seedPendingPayment({ word: 'coding', brand: 'DevX', amountCents: 1000 });
+    await confirmPayment('mock', 'evt_1', first.payment.providerReference, db);
+
+    const boost = await seedBoostPayment({ wordId: first.word.id, ownerId: first.owner.id, amountCents: 500 });
+    const result = await confirmPayment('mock', 'evt_2', boost.providerReference, db);
+    expect(result.outcome).toBe('boosted');
+
+    const activity = await db.activity.findFirstOrThrow({ orderBy: { createdAt: 'desc' } });
+    expect(activity.type).toBe('BOOST');
+    expect(activity.amountCents).toBe(500);
+    expect(activity.ownerId).toBe(first.owner.id);
+    expect(activity.previousOwnerName).toBeNull();
   });
 });
 

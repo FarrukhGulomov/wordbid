@@ -21,6 +21,13 @@ export const boostSchema = z.object({
 
 export type BoostInput = z.infer<typeof boostSchema>;
 
+export const notifyEmailSchema = z.object({
+  paymentId: z.string().min(1),
+  email: z.string().trim().toLowerCase().email('Enter a valid email address.').max(200),
+});
+
+export type NotifyEmailInput = z.infer<typeof notifyEmailSchema>;
+
 export const adminActionSchema = z.object({
   action: z.enum(['block_word', 'unblock_word', 'block_owner']),
   id: z.string().min(1),

@@ -26,6 +26,15 @@ enum PaymentStatus {
 enum ActivityType {
   CLAIMED
   TAKEOVER
+  /// A brand retaking a word it owned at some earlier point (see isReclaimPayment) — a TAKEOVER
+  /// payment under the hood, split out here only so the activity feed can honestly say
+  /// "reclaimed" instead of "took", the same distinction the word page and share copy already
+  /// draw. Never a separate pricing or payment path.
+  RECLAIM
+  /// The current owner raising their own word's value (see Payment.kind and confirmPayment's
+  /// BOOST branch). Never creates or ends an Ownership — recorded here only so real rank
+  /// movement is visible in the same feed as CLAIM/TAKEOVER/RECLAIM.
+  BOOST
 }
 
 enum PaymentKind {
@@ -82,6 +91,10 @@ model Owner {
   url         String
   logoUrl     String?
   description String?
+  /// Optional, set only AFTER a successful claim/takeover/reclaim (never required before
+  /// payment) — see src/app/checkout/result/page.tsx. Used solely to notify this brand if
+  /// another buyer later takes one of its words back; never shown publicly, never required.
+  notifyEmail String?
   blocked     Boolean  @default(false)
   createdAt   DateTime @default(now())
 

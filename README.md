@@ -174,6 +174,9 @@ npm run build      # production build
 | `TAKEOVER_INCREMENT_PERCENT` | no | `5` | Minimum premium to take an owned word |
 | `MAX_AMOUNT_CENTS` | no | `10000000` | Ceiling on a single claim ($100,000) |
 | `CLICK_DEDUPE_WINDOW_SECONDS` | no | `1800` | Repeat clicks by one visitor inside this window are not counted |
+| `NOTIFICATION_PROVIDER` | no | `console` | `console` or `resend` — see **Notifications** |
+| `RESEND_API_KEY` | with Resend | — | Resend API key |
+| `RESEND_FROM_EMAIL` | with Resend | — | Verified "from" address for takeover notice emails |
 
 ### Connecting Stripe
 
@@ -207,6 +210,16 @@ jobs). See **Refunds** below for what it does and why it exists.
 
 `/admin` shows revenue, confirmed payments, claimed words, paid placements, takeovers, repeat
 buyers, valid outbound clicks and average ownership value — all computed from real rows.
+
+Three retention/liquidity rates, also computed from real rows only (`src/lib/metrics.ts`), all 0
+— never `NaN` — with no data yet:
+
+- **Repeat buyer rate** — brands with more than one confirmed ownership ÷ every distinct paying
+  brand (`Owner` is one row per canonical domain, so this needs no fuzzy matching).
+- **Word competition rate** — words that have changed hands at least once (a takeover or reclaim)
+  ÷ every claimed word.
+- **Competitive revenue share** — `competitiveSpendCents` (confirmed TAKEOVER/RECLAIM + BOOST
+  revenue, excluding every word's first claim — see **Competitive proof**) ÷ confirmed revenue.
 
 ## Public attention proof
 
@@ -314,6 +327,40 @@ that make that visible, all derived from real confirmed payments, never fabricat
   takeover/reclaim ("YOU TOOK X"), and a boost ("X BOOSTED") — see
   `src/app/checkout/result/page.tsx` and `isFirstClaimPayment`. The share text follows the same
   split.
+- **The LIVE activity feed** (homepage) shows exactly these four real events as they happen —
+  `CLAIMED`, `TAKEOVER` (naming who it was taken from), `RECLAIM` (a brand honestly getting its
+  own former word back, not just "another takeover"), and `BOOST` (real rank movement, `+$X`,
+  never implying a change of owner). One `Activity` model, one feed — never a second, separate
+  "market activity" system. See `src/lib/ownership.ts` for exactly where each type is decided and
+  `src/components/ActivityFeed.tsx` for the four-way copy.
+
+## Notifications
+
+Optional, minimal, and never a condition of paying: after a claim/takeover/reclaim confirms
+(never a boost — nobody's ownership changes), `/checkout/result` offers a one-field "🔔 GET
+NOTIFIED" form. There is no login in this product, so the only thing standing in for "this is the
+same buyer" is knowledge of that one payment's own unguessable id — the same trust model the
+result page itself already relies on to show that payment's details to whoever loads its URL. See
+`src/lib/notify-email.ts`.
+
+When a brand that opted in later loses its word to a takeover, `confirmPayment` (still inside the
+same transaction, still never touching payment/ownership correctness) prepares a notice with the
+word, the new owner, the outgoing owner's real performance while they held it, and the current
+reclaim price — then the webhook handler sends it, **best-effort, outside the transaction**: a
+delivery failure is logged and never turns a successful payment into a failed one. A brand is
+never notified about "losing" a word to itself (e.g. re-buying its own currently-active word).
+
+Delivery is a provider interface, exactly like payments (`src/lib/payments/types.ts`):
+
+- **`console`** (default) — logs the complete notice. No external service, no cost; a legitimate
+  choice for local dev or a founder who hasn't set up email yet, not a stub.
+- **`resend`** — a real email via [Resend](https://resend.com)'s plain HTTP API, called with the
+  runtime's own `fetch` — **no new npm dependency**. Requires `RESEND_API_KEY` and
+  `RESEND_FROM_EMAIL` (see **Environment variables**). Swapping in a different HTTP-based provider
+  later is one new file implementing `NotificationProvider`, same as `stripe.ts` vs `mock.ts`.
+
+This is deliberately the smallest version of "notify on takeover" — one email, one purpose, no
+inbox, no digest, no preference center. See **Not built (deliberately)** for what's still out.
 
 ## Refunds
 
@@ -355,8 +402,12 @@ and mark it in `/admin`.
 
 ## Not built (deliberately)
 
-Accounts, subscriptions, timed auctions, categories, notifications, share-card generation,
-recommendations, conversion attribution and founder analytics are all out of MVP scope.
+Accounts, subscriptions, timed auctions, categories, share-card generation, recommendations,
+conversion attribution and founder analytics are all out of MVP scope. **Notifications** are the
+one item that moved: a single, minimal, opt-in takeover notice now exists (see **Notifications**
+above) because it directly closes the TAKEOVER → RECLAIM loop; a notification *center* — an
+inbox, digests, preferences, multiple notice types — is still out, same as "complex notifications"
+below.
 
 Also deliberately not in v1.1, evaluated and set aside rather than overlooked: a Today/Weekly
 leaderboard, categories, achievements, battle animations, subscriptions, AI features, complex

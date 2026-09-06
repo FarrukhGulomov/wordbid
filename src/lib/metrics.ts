@@ -22,6 +22,20 @@ export type Metrics = {
   takeoverSpendCents: number;
   /** takeoverSpendCents + boostSpendCents — real money spent competing, never an initial claim. */
   competitiveSpendCents: number;
+  /**
+   * repeatBuyers ÷ distinct paying owners. 0 with no paying owners yet, never NaN. A brand is
+   * "distinct" the same way repeatBuyers already counts it — one row per canonical domain (see
+   * Owner), so this needs no fuzzy matching either.
+   */
+  repeatBuyerRate: number;
+  /** Words that have changed hands at least once ÷ every claimed word. 0 with no claimed words. */
+  wordCompetitionRate: number;
+  /**
+   * (TAKEOVER + RECLAIM + BOOST revenue) ÷ confirmed revenue — competitiveSpendCents already IS
+   * that numerator (see its own doc comment for why TAKEOVER/RECLAIM/BOOST money never
+   * double-counts). 0 with no confirmed revenue yet, never a divide-by-zero NaN.
+   */
+  competitiveRevenueShare: number;
 };
 
 /**
@@ -67,7 +81,7 @@ async function getCompetitiveSpend(): Promise<{ takeoverSpendCents: number; boos
 }
 
 export async function getMetrics(): Promise<Metrics> {
-  const [claimedWords, ownerships, payments, clicks, refundsPending, repeatBuyers, competitiveSpend] =
+  const [claimedWords, ownerships, payments, clicks, refundsPending, buyerCounts, wordCounts, competitiveSpend] =
     await Promise.all([
       prisma.word.count({ where: { currentOwnershipId: { not: null } } }),
       prisma.ownership.aggregate({ _count: true, _avg: { amountCents: true } }),
@@ -80,28 +94,40 @@ export async function getMetrics(): Promise<Metrics> {
       prisma.payment.count({ where: { status: 'REFUND_PENDING' } }),
       // Owner is one row per canonical domain (see checkout route), so a repeat buyer is simply
       // a domain with more than one confirmed ownership — no fuzzy matching needed.
-      prisma.ownership.groupBy({ by: ['ownerId'], _count: { _all: true } }).then(
-        (rows) => rows.filter((row) => row._count._all > 1).length,
-      ),
+      prisma.ownership.groupBy({ by: ['ownerId'], _count: { _all: true } }).then((rows) => ({
+        distinctOwners: rows.length,
+        repeatBuyers: rows.filter((row) => row._count._all > 1).length,
+      })),
+      // A word is "contested" the moment it has had more than one Ownership period, i.e. it
+      // changed hands at least once (a takeover or a reclaim, same thing here — see
+      // getWordCompetitiveSpend for why those are one category).
+      prisma.ownership.groupBy({ by: ['wordId'], _count: { _all: true } }).then((rows) => ({
+        contestedWords: rows.filter((row) => row._count._all > 1).length,
+      })),
       getCompetitiveSpend(),
     ]);
 
   const totalOwnerships = ownerships._count;
+  const revenueCents = payments._sum.amountCents ?? 0;
+  const competitiveSpendCents = competitiveSpend.takeoverSpendCents + competitiveSpend.boostSpendCents;
 
   return {
     claimedWords,
     // Each confirmed ownership is one paying brand placement.
     payingOwners: totalOwnerships,
     confirmedPayments: payments._count,
-    revenueCents: payments._sum.amountCents ?? 0,
+    revenueCents,
     // Every ownership after the first on a word is a takeover.
     takeovers: Math.max(0, totalOwnerships - claimedWords),
-    repeatBuyers,
+    repeatBuyers: buyerCounts.repeatBuyers,
     outboundClicks: clicks,
     averageOwnershipValueCents: Math.round(ownerships._avg.amountCents ?? 0),
     refundsPending,
     boostSpendCents: competitiveSpend.boostSpendCents,
     takeoverSpendCents: competitiveSpend.takeoverSpendCents,
-    competitiveSpendCents: competitiveSpend.takeoverSpendCents + competitiveSpend.boostSpendCents,
+    competitiveSpendCents,
+    repeatBuyerRate: buyerCounts.distinctOwners > 0 ? buyerCounts.repeatBuyers / buyerCounts.distinctOwners : 0,
+    wordCompetitionRate: claimedWords > 0 ? wordCounts.contestedWords / claimedWords : 0,
+    competitiveRevenueShare: revenueCents > 0 ? competitiveSpendCents / revenueCents : 0,
   };
 }

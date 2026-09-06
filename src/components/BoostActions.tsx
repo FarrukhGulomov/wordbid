@@ -58,7 +58,7 @@ export function BoostActions({
   }
 
   return (
-    <section className="mt-6">
+    <section id="boost" className="mt-6 scroll-mt-4">
       <h2 className="mb-1 font-mono text-xs font-bold tracking-widest text-muted">
         BOOST {word.toUpperCase()}
       </h2>

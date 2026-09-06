@@ -3,7 +3,7 @@ import { cookies, headers } from 'next/headers';
 import Link from 'next/link';
 import { prisma } from '@/lib/db';
 import { ADMIN_COOKIE, isAdmin, isValidAdminToken } from '@/lib/admin';
-import { formatUsd, formatCount } from '@/lib/money';
+import { formatUsd, formatCount, formatPercent } from '@/lib/money';
 import { getMetrics } from '@/lib/metrics';
 import { adminActionSchema } from '@/lib/validation';
 import { rateLimit } from '@/lib/ratelimit';
@@ -152,6 +152,9 @@ export default async function AdminPage() {
     ['AVG OWNERSHIP', formatUsd(metrics.averageOwnershipValueCents)],
     ['BOOST SPEND', formatUsd(metrics.boostSpendCents)],
     ['COMPETITIVE SPEND', formatUsd(metrics.competitiveSpendCents)],
+    ['REPEAT BUYER RATE', formatPercent(metrics.repeatBuyerRate)],
+    ['WORD COMPETITION RATE', formatPercent(metrics.wordCompetitionRate)],
+    ['COMPETITIVE REVENUE SHARE', formatPercent(metrics.competitiveRevenueShare)],
   ];
 
   return (

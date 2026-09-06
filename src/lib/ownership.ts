@@ -1,13 +1,19 @@
 import { Prisma, PaymentStatus, PaymentKind, ActivityType } from '@prisma/client';
 import { prisma } from './db';
-import { bidWins } from './pricing';
+import { bidWins, minimumBidCents } from './pricing';
+import type { TakeoverNotice } from './notifications/types';
 import type { PrismaClient } from '@prisma/client';
 
 type Tx = Prisma.TransactionClient;
 
 export type ConfirmOutcome =
-  /** Ownership granted, ranking updated. */
-  | { outcome: 'won'; paymentId: string; wordId: string; ownershipId: string }
+  /**
+   * Ownership granted, ranking updated. `notification` is set only when this ended a DIFFERENT
+   * brand's ownership AND that brand had opted in to a takeover notice — see
+   * src/lib/notify-email.ts and the README's Notifications section. Sending it is the caller's
+   * job (src/app/api/webhooks/payments/route.ts), best-effort, outside this transaction.
+   */
+  | { outcome: 'won'; paymentId: string; wordId: string; ownershipId: string; notification: TakeoverNotice | null }
   /** The current owner's value was raised. Same ownership period, ranking updated. */
   | { outcome: 'boosted'; paymentId: string; wordId: string; ownershipId: string; newValueCents: number }
   /** Money captured but the word was not won (or the boost no longer applies). Caller must refund. */
@@ -120,6 +126,19 @@ export async function confirmPayment(
           data: { status: PaymentStatus.CONFIRMED, confirmedAt: now, failureReason: null },
         });
 
+        // Real, honestly-measurable rank movement — the same feed CLAIM/TAKEOVER/RECLAIM
+        // already write to, never a separate "boost feed". amountCents here is the difference
+        // actually charged, same framing BoostActions already uses on the word page.
+        await tx.activity.create({
+          data: {
+            type: ActivityType.BOOST,
+            wordId: word.id,
+            ownerId: payment.ownerId,
+            amountCents: payment.amountCents,
+            previousOwnerName: null,
+          },
+        });
+
         return {
           outcome: 'boosted',
           paymentId: payment.id,
@@ -140,16 +159,43 @@ export async function confirmPayment(
         return loses('Another brand took this word at a higher price before your payment completed.');
       }
 
-      // Close the outgoing ownership, if any.
+      // Close the outgoing ownership, if any, and capture what its brand might need notified.
       let previousOwnerName: string | null = null;
+      let pendingNotification: TakeoverNotice | null = null;
       if (word.currentOwnershipId) {
         const previous = await tx.ownership.update({
           where: { id: word.currentOwnershipId },
           data: { endedAt: now },
-          include: { owner: { select: { name: true } } },
+          include: { owner: { select: { id: true, name: true, notifyEmail: true } } },
         });
         previousOwnerName = previous.owner.name;
+
+        // Never notify a brand about "losing" a word to itself (e.g. re-buying their own
+        // currently-active word at a higher price) — nothing was actually taken from them.
+        if (previous.owner.notifyEmail && previous.owner.id !== payment.ownerId) {
+          pendingNotification = {
+            toEmail: previous.owner.notifyEmail,
+            wordDisplay: word.display,
+            wordNormalized: word.normalized,
+            previousOwnerName: previous.owner.name,
+            newOwnerName: payment.owner.name,
+            reclaimPriceCents: minimumBidCents(payment.amountCents),
+            previousClicks: previous.clickCount,
+            previousImpressions: previous.impressionCount,
+          };
+        }
       }
+
+      // A reclaim (this exact brand held this exact word before, at any earlier point — see
+      // isReclaimPayment) reads honestly as "reclaimed" rather than "took" in the activity feed.
+      // Checked before creating the new ownership below, so any row found here is genuinely a
+      // PRIOR one, never the one this payment is about to create.
+      const reclaimedOwnOwnership = previousOwnerName
+        ? await tx.ownership.findFirst({
+            where: { wordId: word.id, ownerId: payment.ownerId },
+            select: { id: true },
+          })
+        : null;
 
       // Guard 2: unique paymentId makes a second ownership from this payment impossible.
       const ownership = await tx.ownership.create({
@@ -176,9 +222,15 @@ export async function confirmPayment(
         data: { status: PaymentStatus.CONFIRMED, confirmedAt: now, failureReason: null },
       });
 
+      const activityType = !previousOwnerName
+        ? ActivityType.CLAIMED
+        : reclaimedOwnOwnership
+          ? ActivityType.RECLAIM
+          : ActivityType.TAKEOVER;
+
       await tx.activity.create({
         data: {
-          type: previousOwnerName ? ActivityType.TAKEOVER : ActivityType.CLAIMED,
+          type: activityType,
           wordId: word.id,
           ownerId: payment.ownerId,
           amountCents: payment.amountCents,
@@ -186,7 +238,13 @@ export async function confirmPayment(
         },
       });
 
-      return { outcome: 'won', paymentId: payment.id, wordId: word.id, ownershipId: ownership.id } as const;
+      return {
+        outcome: 'won',
+        paymentId: payment.id,
+        wordId: word.id,
+        ownershipId: ownership.id,
+        notification: pendingNotification,
+      } as const;
     });
   } catch (err) {
     // Unique violation on (provider, eventId) => this event was already applied.

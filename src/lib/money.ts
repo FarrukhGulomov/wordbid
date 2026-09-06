@@ -17,6 +17,11 @@ export function formatCount(n: number): string {
   return new Intl.NumberFormat('en-US').format(n);
 }
 
+/** 0.4231 -> "42.3%". A fraction (0..1), not a whole percentage — callers never pre-multiply. */
+export function formatPercent(fraction: number): string {
+  return `${(fraction * 100).toFixed(1)}%`;
+}
+
 /**
  * Parses user input like "500", "$500", "1,050.50" into cents.
  * Returns null when the input is not a usable amount.

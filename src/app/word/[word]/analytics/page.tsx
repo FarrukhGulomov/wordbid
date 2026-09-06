@@ -52,6 +52,7 @@ export default async function OwnershipAnalyticsPage({ params }: Props) {
   const cpc = calculateCostPerClickCents(performance.amountCents, performance.validClicks);
 
   const stats: [string, string][] = [
+    ['RANK', word.rank ? `#${word.rank}` : 'UNRANKED'],
     ['IMPRESSIONS', formatCount(performance.impressions)],
     ['CLICKS DELIVERED', formatCount(performance.validClicks)],
     ['CTR', `${performance.ctr.toFixed(1)}%`],
@@ -66,7 +67,7 @@ export default async function OwnershipAnalyticsPage({ params }: Props) {
       </h1>
       <p className="mt-1 text-sm text-muted">Current owner: {owner.name}</p>
 
-      <dl className="mt-6 grid grid-cols-2 gap-4 rounded border border-line bg-surface p-4 sm:grid-cols-4">
+      <dl className="mt-6 grid grid-cols-2 gap-4 rounded border border-line bg-surface p-4 sm:grid-cols-5">
         {stats.map(([label, value]) => (
           <div key={label}>
             <dt className="font-mono text-xs text-muted">{label}</dt>
@@ -117,6 +118,19 @@ export default async function OwnershipAnalyticsPage({ params }: Props) {
         >
           ← Back to {display}
         </Link>
+        {word.rank && word.rank > 1 && (
+          <>
+            {' · '}
+            {/* A plain link, deliberately never a BOOST button — see "Design: performance vs.
+                the purchase decision" in the README for why that mixing was removed from here. */}
+            <Link
+              href={`/word/${word.normalized}#boost`}
+              className="text-muted underline underline-offset-2 hover:text-text"
+            >
+              Want to rank higher? →
+            </Link>
+          </>
+        )}
       </p>
     </div>
   );

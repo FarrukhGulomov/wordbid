@@ -101,4 +101,44 @@ describe('getMetrics', () => {
     expect(result.takeoverSpendCents).toBe(2000); // never 1000 (claim) or 1500 (boosted ownership)
     expect(result.competitiveSpendCents).toBe(2500);
   });
+
+  it('reports zero rates, never NaN or Infinity, on an empty database', async () => {
+    const result = await metrics();
+    expect(result.repeatBuyerRate).toBe(0);
+    expect(result.wordCompetitionRate).toBe(0);
+    expect(result.competitiveRevenueShare).toBe(0);
+  });
+
+  it('computes repeat buyer rate as repeat buyers over every distinct paying brand', async () => {
+    await claim('ai', 'DevX', 1000, 'e1', 'https://devx.example');
+    await claim('coding', 'DevX', 1000, 'e2', 'https://devx.example'); // DevX again -> repeat
+    await claim('video', 'Other', 1000, 'e3', 'https://other.example'); // one-time buyer
+
+    const result = await metrics();
+    // 1 repeat buyer (DevX) out of 2 distinct brands (DevX, Other).
+    expect(result.repeatBuyerRate).toBeCloseTo(0.5);
+  });
+
+  it('computes word competition rate as words that changed hands at least once over every claimed word', async () => {
+    await claim('coding', 'DevX', 1000, 'e1');
+    await claim('coding', 'CodeAI', 2000, 'e2'); // "coding" is now contested
+    await claim('ai', 'AcmeAI', 1000, 'e3'); // "ai" never changes hands
+
+    const result = await metrics();
+    // 1 contested word ("coding") out of 2 claimed words.
+    expect(result.wordCompetitionRate).toBeCloseTo(0.5);
+  });
+
+  it('computes competitive revenue share as competitive spend over total confirmed revenue', async () => {
+    const first = await claim('coding', 'DevX', 1000, 'e1');
+    const boost = await seedBoostPayment({ wordId: first.word.id, ownerId: first.owner.id, amountCents: 500 });
+    await confirmPayment('mock', 'e2', boost.providerReference, db);
+    await claim('coding', 'CodeAI', 2000, 'e3');
+
+    const result = await metrics();
+    // Revenue: 1000 (claim) + 500 (boost) + 2000 (takeover) = 3500. Competitive: 500 + 2000 = 2500.
+    expect(result.revenueCents).toBe(3500);
+    expect(result.competitiveSpendCents).toBe(2500);
+    expect(result.competitiveRevenueShare).toBeCloseTo(2500 / 3500);
+  });
 });
