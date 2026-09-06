@@ -48,27 +48,33 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <VisitorHeartbeat />
 
         <header className="border-b border-line">
-          <div className="mx-auto max-w-3xl px-4 py-4">
+          <div className="mx-auto max-w-3xl px-4 py-3 sm:py-4">
+            {/* Hierarchy is BRAND -> CTA -> live stats: the wordmark anchors the left at real
+                size instead of apologizing for itself; stats and the CTA are grouped on the
+                right so stats read as supporting context for the action next to them, not as
+                a third, equally-weighted header item competing for center attention. */}
             <div className="flex items-center justify-between gap-4">
               <Link href="/" className="shrink-0">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/logo-horizontal.svg" alt={SITE_NAME} className="h-6 w-auto sm:h-7" />
+                <img src="/logo-horizontal.svg" alt={SITE_NAME} className="h-8 w-auto sm:h-9" />
               </Link>
-              {/* Desktop: same proof line, folded into the header's one row instead of a
-                  second line — keeps the header compact so the product starts sooner. */}
-              <p className="tnum hidden font-mono text-xs text-muted sm:block">
-                <span className="text-live">🟢</span> {formatCount(online)} online ·{' '}
-                {formatCount(visitors)} visitors ·{' '}
-                <Link href="/stats" className="text-muted underline underline-offset-2 hover:text-text">
-                  STATS →
+              <div className="flex items-center gap-4">
+                {/* Desktop: same proof line, folded into the header's one row instead of a
+                    second line — keeps the header compact so the product starts sooner. */}
+                <p className="tnum hidden font-mono text-xs text-muted sm:block">
+                  <span className="text-live">🟢</span> {formatCount(online)} online ·{' '}
+                  {formatCount(visitors)} visitors ·{' '}
+                  <Link href="/stats" className="text-muted underline underline-offset-2 hover:text-text">
+                    STATS →
+                  </Link>
+                </p>
+                <Link
+                  href="/claim"
+                  className="shrink-0 rounded bg-gold px-4 py-2 font-mono text-sm font-bold text-ink transition hover:opacity-85"
+                >
+                  CLAIM A WORD
                 </Link>
-              </p>
-              <Link
-                href="/claim"
-                className="rounded bg-gold px-3 py-1.5 font-mono text-xs font-bold text-ink transition hover:opacity-85"
-              >
-                CLAIM A WORD
-              </Link>
+              </div>
             </div>
             <p className="tnum mt-1.5 font-mono text-xs text-muted sm:hidden">
               <span className="text-live">🟢</span> {formatCount(online)} online ·{' '}
