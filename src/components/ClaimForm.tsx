@@ -24,6 +24,7 @@ export function ClaimForm({ initialWord }: { initialWord: string }) {
   const [word, setWord] = useState(initialWord);
   const [brandName, setBrandName] = useState('');
   const [url, setUrl] = useState('');
+  const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [amountTouched, setAmountTouched] = useState(false);
 
@@ -88,7 +89,13 @@ export function ClaimForm({ initialWord }: { initialWord: string }) {
       const res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ word, brandName, url, amountCents }),
+        body: JSON.stringify({
+          word,
+          brandName,
+          url,
+          amountCents,
+          ...(description.trim() ? { description: description.trim() } : {}),
+        }),
       });
       const data = await res.json();
 
@@ -177,6 +184,26 @@ export function ClaimForm({ initialWord }: { initialWord: string }) {
             className="w-full rounded border border-line bg-surface px-3 py-2.5 focus:border-gold focus:outline-none"
           />
         </div>
+      </div>
+
+      <div>
+        <label
+          htmlFor="description"
+          className="mb-1 block font-mono text-xs font-bold tracking-widest text-muted"
+        >
+          DESCRIPTION (OPTIONAL)
+        </label>
+        <input
+          id="description"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Left blank, we try to pull one from your site automatically"
+          maxLength={160}
+          className="w-full rounded border border-line bg-surface px-3 py-2.5 text-sm placeholder:text-muted focus:border-gold focus:outline-none"
+        />
+        <p className="mt-1.5 text-xs text-muted">
+          Some sites block automatic detection — type your own if it doesn&apos;t show up after paying.
+        </p>
       </div>
 
       <div>
