@@ -15,7 +15,8 @@
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
     "postinstall": "prisma generate",
-    "reconcile-refunds": "tsx scripts/reconcile-refunds.ts"
+    "reconcile-refunds": "tsx scripts/reconcile-refunds.ts",
+    "remove-seed-owners": "tsx scripts/remove-seed-owners.ts"
   },
   "dependencies": {
     "@prisma/client": "6.16.2",

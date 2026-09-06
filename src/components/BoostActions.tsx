@@ -6,14 +6,18 @@ import { formatUsd } from '@/lib/money';
 type Target = { rank: number; targetValueCents: number };
 
 /**
- * OWNER ACTION — the current owner pays only the DIFFERENCE to raise their word's value and
- * move up the leaderboard. Lives on the word page itself (not buried in analytics) because
- * "want more visibility" is a commercial decision, not a performance-review one — see the
- * word page for where this is mounted.
+ * Raises the word's own value (and rank) by the DIFFERENCE charged — the money always applies to
+ * the word's CURRENT owner, looked up server-side in /api/boost, never taken from the request.
+ * Lives on the word page itself (not buried in analytics) because "want more visibility" is a
+ * commercial decision, not a performance-review one — see the word page for where this is mounted.
  *
- * The button leads with what the owner actually pays (PAY $X), never the resulting total value
- * — a $40 difference converts better and reads more honestly than a $50 headline number that
- * hides how much of it the owner already has "banked" in the word's current value.
+ * WordBid has no login, so it can never confirm the visitor clicking this IS the current owner —
+ * the copy stays neutral and transactional ("boost this word") rather than addressing the reader
+ * as "you"/"your word", which would wrongly imply a verified owner identity.
+ *
+ * The button leads with what gets paid (PAY $X), never the resulting total value — a $40
+ * difference converts better and reads more honestly than a $50 headline number that hides how
+ * much of it the word already had "banked" in its current value.
  */
 export function BoostActions({
   word,
@@ -55,10 +59,12 @@ export function BoostActions({
 
   return (
     <section className="mt-6">
-      <h2 className="mb-1 font-mono text-xs font-bold tracking-widest text-muted">OWNER ACTION</h2>
+      <h2 className="mb-1 font-mono text-xs font-bold tracking-widest text-muted">
+        BOOST {word.toUpperCase()}
+      </h2>
       <p className="mb-3 text-xs text-muted">
-        Want more visibility? Pay the difference to raise your rank — you keep the word, this is
-        not a takeover.
+        Pay the difference to raise this word&rsquo;s value and rank. The current owner keeps the
+        word — this is not a takeover.
       </p>
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         {targets.map((t) => {

@@ -107,15 +107,19 @@ export default async function HomePage({
       </section>
 
       <section>
+        {/* -mx-4 px-4 bleeds the scroll area to the true screen edge on mobile (canceling
+            <main>'s own px-4) so the last tab gets real trailing space instead of stopping flush
+            against the container's inner edge, where it reads as clipped rather than scrollable.
+            Reverts to normal, non-bled padding at sm+ where the tabs already fit without scrolling. */}
         <nav
-          className="mb-4 flex gap-1 overflow-x-auto border-b border-line"
+          className="-mx-4 mb-4 flex gap-1 overflow-x-auto px-4 border-b border-line sm:mx-0 sm:px-0"
           aria-label="Discovery views"
         >
           {TABS.map((t) => (
             <Link
               key={t.key}
               href={t.key === 'top' ? '/' : `/?tab=${t.key}`}
-              className={`shrink-0 whitespace-nowrap border-b-2 px-3 py-2 font-mono text-xs font-bold tracking-widest transition ${
+              className={`shrink-0 whitespace-nowrap border-b-2 px-3 py-2.5 font-mono text-xs font-bold tracking-widest transition ${
                 tab === t.key
                   ? 'border-gold text-gold'
                   : 'border-transparent text-muted hover:text-text'
