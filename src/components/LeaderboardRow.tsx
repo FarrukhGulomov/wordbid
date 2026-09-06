@@ -44,6 +44,9 @@ export function LeaderboardRow({ row }: { row: Row }) {
             <BrandLogo src={row.ownerLogoUrl} size={16} />
             <span className="truncate">{row.ownerName}</span>
           </div>
+          {row.highlight && (
+            <p className="mt-0.5 truncate text-xs text-gold">{row.highlight}</p>
+          )}
         </div>
       </div>
 

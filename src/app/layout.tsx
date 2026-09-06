@@ -9,16 +9,16 @@ import { VisitorHeartbeat } from '@/components/VisitorHeartbeat';
 export const metadata: Metadata = {
   metadataBase: new URL(config.siteUrl),
   title: {
-    default: `${SITE_NAME} — Claim a word. Own a position.`,
+    default: `${SITE_NAME} — Discover what's winning on the internet.`,
     template: `%s — ${SITE_NAME}`,
   },
   description:
-    'Brands compete to own a word and a position on the internet. Highest current value ranks #1.',
+    "See the startups gaining attention before everyone else. Brands compete for a word and a position — highest current value ranks #1.",
   openGraph: {
     type: 'website',
     siteName: SITE_NAME,
-    title: `${SITE_NAME} — Claim a word. Own a position.`,
-    description: 'Brands compete to own a word and a position on the internet.',
+    title: `${SITE_NAME} — Discover what's winning on the internet.`,
+    description: 'See the startups gaining attention before everyone else.',
   },
   twitter: { card: 'summary_large_image' },
 };

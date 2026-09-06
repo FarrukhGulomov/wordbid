@@ -24,6 +24,13 @@ export type LeaderboardRow = {
   minimumBidCents: number;
   /** The authoritative BidRank score behind this row's position. Not rendered — see bidrank.ts. */
   bidRankScore: number;
+  ownedSince: Date;
+  /**
+   * A short, honest, real-data-only reason this row appears in a discovery view (e.g. "🔥 12
+   * clicks this week") — never set by getLeaderboard itself, only by src/lib/discovery.ts's
+   * Trending/Rising/Hidden Gems/New views. Undefined on the plain Top leaderboard.
+   */
+  highlight?: string;
 };
 
 /**
@@ -68,6 +75,7 @@ export async function getLeaderboard(limit = 50, skip = 0): Promise<LeaderboardR
         ownerLogoUrl: owner.logoUrl,
         minimumBidCents: minimumBidCents(word.valueCents),
         bidRankScore: computeBidRank({ bidStrengthCents: word.valueCents }),
+        ownedSince: word.ownedSince!,
       },
     ];
   });
@@ -255,17 +263,6 @@ export async function getRecentActivity(limit = 8) {
     },
     where: { word: { blocked: false } },
   });
-}
-
-/** Words claimed most recently — a lightweight discovery strip under the leaderboard. */
-export async function getRecentlyClaimed(limit = 6) {
-  const words = await prisma.word.findMany({
-    where: { blocked: false, currentOwnershipId: { not: null } },
-    orderBy: { ownedSince: 'desc' },
-    take: limit,
-    include: { currentOwnership: { include: { owner: { select: { name: true } } } } },
-  });
-  return words;
 }
 
 /** Words with the most ownership changes — "most fought over". */

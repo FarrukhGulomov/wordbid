@@ -76,6 +76,41 @@ word's rank moves over time. Both now do.
   already used everywhere else, applied to the current #1's value) — not a separate pricing
   engine, just the existing one applied to a different row.
 
+### Discovery / the attention engine
+
+WordBid has to answer a question BidRank alone can't: why would a visitor come back if they're
+never going to pay? `src/lib/discovery.ts` is the centralized answer — one system, five views
+over the same leaderboard data, never five parallel systems:
+
+- **Top** — the plain BidRank leaderboard (`getLeaderboard`), unchanged.
+- **Trending** (`getTrendingWords`) — real clicks in the trailing 7 days on the word's *current*
+  ownership only (a takeover never inherits a previous owner's numbers, same rule as everywhere
+  else — see `Word.clickCount`'s doc comment). Requires a real minimum click count; a single
+  stray click is never "trending".
+- **Rising** (`getRisingWords`) — rank climbed since the oldest real `RankSnapshot` observation
+  available between 3 and 14 days ago. A word with no observation in that window is simply
+  absent from the list — never a fabricated rise.
+- **Hidden Gems** (`getHiddenGems`) — real CTR divided by a promotion penalty that grows with the
+  word's paid value, restricted to words outside the top 3 (already visible by definition) with
+  a real minimum sample size. **Paying more can only ever lower this score** — there is no way to
+  raise it with money, only with real clicks relative to real impressions;
+  `tests/discovery.test.ts` proves a costlier word with identical engagement never outranks a
+  cheaper one.
+- **New** — most recently claimed, by `Word.ownedSince`, never gated by payment amount.
+
+Every view is a bounded read (at most two or three queries regardless of word count, scanning up
+to 500 owned words in memory) — no N+1, no per-request re-ranking of the whole board beyond that
+scan. **Scaling note:** that 500-word scan is a pragmatic MVP cap, not a claim it scans "all"
+words forever; past that scale, Trending/Rising/Hidden Gems would need their own indexed queries
+instead of filtering the in-memory board.
+
+**Abuse protection**, because these signals now directly decide what a visitor sees on the
+homepage: clicks were already deduplicated per visitor and bot-filtered
+(`CLICK_DEDUPE_WINDOW_SECONDS`, `looksLikeBot`); impressions were already bot-filtered and rate
+limited (30/min/IP). New in this pass: `/go/<word>` is now also rate limited per IP (20/min) —
+tracking is skipped, never the redirect itself, above that — specifically to blunt a script
+hammering the endpoint to inflate Trending or Hidden Gems from many simulated visitors.
+
 ### Payment correctness
 
 1. **Verified.** The webhook signature is checked against the raw request body. Bad signature → 400.
@@ -315,14 +350,23 @@ current architecture decision — `Payment.kind` already generalises cleanly (BO
 and nothing here relies on ranking being anything other than a live, deterministic sort. The
 reason they're not built is scope, not a wall to knock down later.
 
-Also deliberately deferred, evaluated against `RankSnapshot` and the rest of v1.2's own request:
-a reputation/"WordBid Score" system, category leaderboards, momentum/trending badges ("Fastest
-Rising", "Trending"), a generic historical event graph, and shareable viral achievement badges.
-Each needs either real accumulated history this young a platform doesn't have yet (reputation,
-momentum — awarding either off a handful of observations would mean fabricating confidence the
-data doesn't support) or new schema surface that deserves its own careful pass rather than being
-rushed in alongside a ranking change (`Word.category`, a badges API). None of them are blocked:
-`RankSnapshot` is exactly the substrate momentum and reputation history would read from, and
-`Activity` + `Ownership` + `Click` + `OwnershipDailyStat` + `RankSnapshot` together already are
-the historical event graph — a fifth, generic "event" table logging the same facts a second time
-would be duplication, not new capability.
+Also deliberately deferred: a reputation/"WordBid Score" system, a generic historical event
+graph, and shareable viral achievement badges. Each needs either real accumulated history this
+young a platform doesn't have yet — awarding a reputation score or a badge off a handful of
+observations would mean fabricating confidence the data doesn't support — or new schema/API
+surface that deserves its own careful pass. Trending/Rising/Hidden Gems (see "Discovery / the
+attention engine" above) turned out to need no new schema at all — `Word.clickCount`,
+`OwnershipDailyStat` and `RankSnapshot` already carried everything required — so they shipped;
+reputation scoring is a bigger claim on less data and stayed out. None of the rest is blocked:
+`RankSnapshot` is exactly the substrate reputation history would read from, and `Activity` +
+`Ownership` + `Click` + `OwnershipDailyStat` + `RankSnapshot` together already are the historical
+event graph — a fifth, generic "event" table logging the same facts a second time would be
+duplication, not new capability.
+
+Category discovery (`/category/<slug>`) is the one item from this pass's own request that's
+still out: it needs a `Word.category` column, a category picker in `ClaimForm`, and a dynamic
+route — none of it hard, but `src/lib/discovery.ts`'s query functions were written so adding a
+`category` filter to each is the actual fast-follow (a `where: { category }` clause plus one new
+route reusing the same `LeaderboardRow` + `LeaderboardRow` component this pass already built),
+not a redesign. Distinct shareable URLs per discovery tab (`/trending`, `/rising`, `/gems`) are
+the same story — currently `/?tab=`, cheap to promote to real routes later for SEO.
