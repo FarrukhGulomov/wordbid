@@ -57,8 +57,8 @@ export function BoostActions({ word, targets }: { word: string; targets: Target[
             {pending === t.targetValueCents
               ? 'STARTING…'
               : t.rank === 1
-                ? `TAKE #1 — ${formatUsd(t.targetValueCents)}`
-                : `MOVE ABOVE #${t.rank} — ${formatUsd(t.targetValueCents)}`}
+                ? `BOOST TO #1 — ${formatUsd(t.targetValueCents)}`
+                : `BOOST ABOVE #${t.rank} — ${formatUsd(t.targetValueCents)}`}
           </button>
         ))}
       </div>

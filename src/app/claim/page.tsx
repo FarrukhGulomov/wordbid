@@ -21,7 +21,8 @@ export default async function ClaimPage({
   return (
     <div className="py-10">
       <h1 className="font-mono text-2xl font-black tracking-tight sm:text-3xl">CLAIM A WORD</h1>
-      <p className="mt-2 mb-8 text-sm text-muted">
+      <p className="mt-2 text-sm text-muted">Own the word that defines your brand.</p>
+      <p className="mt-1 mb-8 text-sm text-muted">
         Word → brand → price → pay. Highest price ranks #1.
       </p>
       <Suspense>

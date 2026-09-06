@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach, afterAll } from 'vitest';
 import { confirmPayment } from '@/lib/ownership';
 import { recordClick } from '@/lib/clicks';
-import { db, resetDb, seedPendingPayment } from './helpers';
+import { db, resetDb, seedPendingPayment, seedBoostPayment } from './helpers';
 
 beforeEach(resetDb);
 afterAll(async () => {
@@ -81,5 +81,24 @@ describe('getMetrics', () => {
     await recordClick({ ...args, ip: '3.3.3.3', userAgent: 'Googlebot/2.1' }); // bot
 
     expect((await metrics()).outboundClicks).toBe(2);
+  });
+
+  it('reports boost and competitive spend, across multiple words, excluding every initial claim', async () => {
+    // Word 1: claim, then a boost, then a takeover — the exact double-count trap (a boost
+    // mutates its ownership's amountCents in place, so the boosted ownership's amountCents is
+    // no longer just "what the takeover paid").
+    const first = await claim('coding', 'DevX', 1000, 'e1');
+    const boost = await seedBoostPayment({ wordId: first.word.id, ownerId: first.owner.id, amountCents: 500 });
+    await confirmPayment('mock', 'e2', boost.providerReference, db);
+    const takeover = await seedPendingPayment({ word: 'coding', brand: 'CodeAI', amountCents: 2000 });
+    await confirmPayment('mock', 'e3', takeover.payment.providerReference, db);
+
+    // Word 2: just a claim — contributes nothing competitive.
+    await claim('ai', 'AcmeAI', 10000, 'e4');
+
+    const result = await metrics();
+    expect(result.boostSpendCents).toBe(500);
+    expect(result.takeoverSpendCents).toBe(2000); // never 1000 (claim) or 1500 (boosted ownership)
+    expect(result.competitiveSpendCents).toBe(2500);
   });
 });

@@ -37,6 +37,7 @@ export default async function StatsPage() {
     ['OUTBOUND CLICKS', formatCount(metrics.outboundClicks)],
     ['WORDS OWNED', formatCount(metrics.claimedWords)],
     ['TAKEOVERS', formatCount(metrics.takeovers)],
+    ['COMPETITIVE SPEND', formatUsd(metrics.competitiveSpendCents)],
   ];
 
   return (

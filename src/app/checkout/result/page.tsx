@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { formatUsd } from '@/lib/money';
-import { getRank } from '@/lib/queries';
+import { getRank, isFirstClaimPayment } from '@/lib/queries';
 import { config, SITE_NAME } from '@/lib/config';
 import { PendingRefresh } from '@/components/PendingRefresh';
 import { ShareButtons } from '@/components/ShareButtons';
@@ -37,9 +37,15 @@ export default async function CheckoutResultPage({
     const wordPath = `/word/${payment.word.normalized}`;
     // The canonical, absolute URL — this is what gets shared and copied, never the relative path.
     const canonicalUrl = `${config.siteUrl}${wordPath}`;
+    // A first claim and a takeover/reclaim are different wins and get different copy — see
+    // isFirstClaimPayment. Meaningless (and skipped) for a boost, which never creates its own
+    // ownership.
+    const isFirstClaim = isBoost ? false : await isFirstClaimPayment(payment.id);
     const shareText = isBoost
       ? `🚀 We boosted "${wordDisplay}" on ${SITE_NAME}.`
-      : `👑 We own "${wordDisplay}" on ${SITE_NAME}.`;
+      : isFirstClaim
+        ? `We own ${wordDisplay} on ${SITE_NAME} 👑`
+        : `We just took ${wordDisplay} on ${SITE_NAME} 👑`;
 
     return (
       <div className="py-16 text-center">
@@ -47,12 +53,18 @@ export default async function CheckoutResultPage({
           {isBoost ? 'BOOST CONFIRMED' : 'PAYMENT CONFIRMED'}
         </p>
         <h1 className="mt-3 font-mono text-3xl font-black tracking-tight sm:text-4xl">
-          {isBoost ? `${wordDisplay} BOOSTED 🚀` : `YOU OWN ${wordDisplay} 👑`}
+          {isBoost
+            ? `${wordDisplay} BOOSTED 🚀`
+            : isFirstClaim
+              ? `YOU OWN ${wordDisplay} 👑`
+              : `YOU TOOK ${wordDisplay} 👑`}
         </h1>
         <p className="mt-4 text-lg">
           {isBoost
             ? `${payment.owner.name} paid ${formatUsd(payment.amountCents)} to raise ${wordDisplay}'s value.`
-            : `${payment.owner.name} now owns ${wordDisplay} on ${SITE_NAME}.`}
+            : isFirstClaim
+              ? `${payment.owner.name} now owns ${wordDisplay} on ${SITE_NAME}.`
+              : `${payment.owner.name} took ${wordDisplay} on ${SITE_NAME}.`}
         </p>
         <p className="mt-1 text-sm text-muted">
           {/* A boost's amountCents is only the difference charged, not the resulting value —

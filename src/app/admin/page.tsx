@@ -150,6 +150,8 @@ export default async function AdminPage() {
     ['REPEAT BUYERS', formatCount(metrics.repeatBuyers)],
     ['OUTBOUND CLICKS', formatCount(metrics.outboundClicks)],
     ['AVG OWNERSHIP', formatUsd(metrics.averageOwnershipValueCents)],
+    ['BOOST SPEND', formatUsd(metrics.boostSpendCents)],
+    ['COMPETITIVE SPEND', formatUsd(metrics.competitiveSpendCents)],
   ];
 
   return (

@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { BrandLogo } from '@/components/BrandLogo';
 import { ImpressionBeacon } from '@/components/ImpressionBeacon';
 import { notFound } from 'next/navigation';
-import { getWordByNormalized } from '@/lib/queries';
+import { getWordByNormalized, getWordCompetitiveSpend } from '@/lib/queries';
 import { getOwnershipPerformance } from '@/lib/ownership-stats';
 import { normalizeWord } from '@/lib/word';
 import { formatUsd, formatCount } from '@/lib/money';
@@ -76,6 +76,7 @@ export default async function WordPage({ params }: Props) {
 
   const history = word.ownerships;
   const performance = word.currentOwnership ? await getOwnershipPerformance(word.currentOwnership.id) : null;
+  const competitive = await getWordCompetitiveSpend(word.id);
 
   return (
     <div className="py-10">
@@ -154,22 +155,48 @@ export default async function WordPage({ params }: Props) {
       </div>
 
       <section className="mt-10">
-        <h2 className="mb-3 font-mono text-xs font-bold tracking-widest text-muted">
+        <h2 className="mb-1 font-mono text-xs font-bold tracking-widest text-muted">
           HISTORY OF {display}
         </h2>
+        {/* Compact, real competitive proof — never shown for a word that has only ever had one
+            owner, and the spend clause only when there has actually been any (never fabricated;
+            see getWordCompetitiveSpend, which reads confirmed payments only). */}
+        {competitive.takeoverCount > 0 && (
+          <p className="mb-3 text-xs text-muted">
+            {display} has changed owners {competitive.takeoverCount} time
+            {competitive.takeoverCount === 1 ? '' : 's'}.
+            {competitive.competitiveSpendCents > 0 && (
+              <> {formatUsd(competitive.competitiveSpendCents)} spent competing for it.</>
+            )}
+          </p>
+        )}
         <ul className="divide-y divide-line rounded border border-line">
           {history.map((period) => (
-            <li key={period.id} className="flex items-baseline gap-3 px-3 py-2.5 text-sm">
-              <span className="min-w-0 flex-1 truncate font-medium">
-                {period.owner.name}
-                {period.endedAt === null && <span className="ml-2 text-xs text-gold">CURRENT</span>}
-              </span>
-              <span className="tnum shrink-0 font-mono text-gold">
-                {formatUsd(period.amountCents)}
-              </span>
-              <span className="tnum w-10 shrink-0 text-right text-xs text-muted">
-                {shortAgo(period.startedAt)}
-              </span>
+            <li
+              key={period.id}
+              className="flex flex-col gap-1 px-3 py-2.5 text-sm sm:flex-row sm:items-baseline sm:gap-3"
+            >
+              <div className="flex items-baseline gap-2 sm:min-w-0 sm:flex-1">
+                <span className="min-w-0 truncate font-medium">{period.owner.name}</span>
+                {period.endedAt === null && <span className="text-xs font-bold text-gold">CURRENT</span>}
+              </div>
+              <div className="flex items-baseline gap-3 text-xs sm:shrink-0">
+                <span className="tnum font-mono text-sm text-gold">
+                  {formatUsd(period.amountCents)}
+                </span>
+                <span className="tnum text-muted">{formatCount(period.clickCount)} clicks</span>
+                <span className="tnum w-10 shrink-0 text-right text-muted">
+                  {period.endedAt === null ? '' : shortAgo(period.startedAt)}
+                </span>
+                {period.endedAt !== null && (
+                  <Link
+                    href={`/claim?word=${encodeURIComponent(word.normalized)}`}
+                    className="shrink-0 font-mono font-bold text-gold underline underline-offset-2 hover:text-text"
+                  >
+                    RECLAIM FOR {formatUsd(takePrice)}
+                  </Link>
+                )}
+              </div>
             </li>
           ))}
         </ul>

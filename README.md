@@ -215,6 +215,30 @@ Public surfaces:
   **Not built**) — building one just to gate this page would be a much bigger feature than the
   page itself.
 
+## Competitive proof
+
+WordBid's whole pitch is that rank is real and contested, not decorative — these are the pieces
+that make that visible, all derived from real confirmed payments, never fabricated.
+
+- **Word history** (on every owned word's page) shows every past Ownership period — owner, what
+  they paid, clicks that period earned, and CURRENT or how long ago it started. It's read
+  straight off `Ownership` rows, which are never rewritten once a period ends (see **Ownership
+  analytics** above), so this is immutable by construction.
+- **Reclaim.** A past owner shown in that history gets a `RECLAIM FOR $X` link next to their row.
+  It is the exact same `/claim` flow and price as any other takeover — no separate pricing
+  engine, no special-cased "reclaim" payment path. `X` is just the word's live minimum bid;
+  whoever pays it wins the word, same as always.
+- **Competitive spend** (`src/lib/queries.ts#getWordCompetitiveSpend`, platform-wide version in
+  `src/lib/metrics.ts`) = confirmed TAKEOVER/reclaim spend + confirmed BOOST spend, **excluding**
+  every word's first claim. Shown per-word (word page), and platform-wide on `/stats` and
+  `/admin`. It is read from `Payment.amountCents` directly, never `Ownership.amountCents` — a
+  boost mutates its ownership's `amountCents` in place, so summing that would double-count a
+  boosted ownership's takeover price together with its later boost money.
+- **Post-purchase copy** distinguishes three real outcomes: a first claim ("YOU OWN X"), a
+  takeover/reclaim ("YOU TOOK X"), and a boost ("X BOOSTED") — see
+  `src/app/checkout/result/page.tsx` and `isFirstClaimPayment`. The share text follows the same
+  split.
+
 ## Refunds
 
 A payment that loses the takeover race (`confirmPayment` returns `outcome: 'lost'`) has already
@@ -257,3 +281,12 @@ and mark it in `/admin`.
 
 Accounts, subscriptions, timed auctions, categories, notifications, share-card generation,
 recommendations, conversion attribution and founder analytics are all out of MVP scope.
+
+Also deliberately not in v1.1, evaluated and set aside rather than overlooked: a Today/Weekly
+leaderboard, categories, achievements, battle animations, subscriptions, AI features, complex
+notifications, full owner accounts/dashboards, random ranking, rotating equal-price listings, a
+DataFast-style analytics product, and any major visual redesign. None of them are blocked by a
+current architecture decision — `Payment.kind` already generalises cleanly (BOOST proved that),
+`Ownership` periods already carry everything a Today/Weekly view would need to re-slice by date,
+and nothing here relies on ranking being anything other than a live, deterministic sort. The
+reason they're not built is scope, not a wall to knock down later.

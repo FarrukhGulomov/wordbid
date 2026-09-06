@@ -122,6 +122,72 @@ export async function getWordByNormalized(normalized: string) {
   };
 }
 
+/**
+ * True when the ownership a TAKEOVER payment created was the word's very first — i.e. this was
+ * a claim, not a takeover or reclaim. A BOOST payment never creates an ownership of its own
+ * (see confirmPayment's BOOST branch) and so is never "first" — this only means something for
+ * TAKEOVER-kind payments.
+ */
+export async function isFirstClaimPayment(paymentId: string): Promise<boolean> {
+  const ownership = await prisma.ownership.findUnique({
+    where: { paymentId },
+    select: { wordId: true, startedAt: true },
+  });
+  if (!ownership) return false;
+  const earlierCount = await prisma.ownership.count({
+    where: { wordId: ownership.wordId, startedAt: { lt: ownership.startedAt } },
+  });
+  return earlierCount === 0;
+}
+
+export type CompetitiveSpend = {
+  /** Ownership changes after the first claim — a takeover or a reclaim, same thing here. */
+  takeoverCount: number;
+  takeoverSpendCents: number;
+  boostSpendCents: number;
+  /** Confirmed TAKEOVER/reclaim spend plus confirmed BOOST spend. Never counts the first claim. */
+  competitiveSpendCents: number;
+};
+
+/**
+ * Real, confirmed money spent competing for a word — never the initial claim.
+ *
+ * Deliberately reads confirmed Payment rows directly rather than summing Ownership.amountCents:
+ * a boost mutates its ownership's amountCents in place (see confirmPayment), so an ownership
+ * that was later boosted would otherwise have its takeover price AND its boost money counted
+ * together under "takeover spend", double-counting the boost. Payment.amountCents is immutable
+ * once confirmed and is exactly what changed hands for that one payment, so this can't happen.
+ */
+export async function getWordCompetitiveSpend(wordId: string): Promise<CompetitiveSpend> {
+  const [firstOwnership, takeoverPayments, boostAgg] = await Promise.all([
+    prisma.ownership.findFirst({
+      where: { wordId },
+      orderBy: { startedAt: 'asc' },
+      select: { paymentId: true },
+    }),
+    prisma.payment.findMany({
+      where: { wordId, kind: 'TAKEOVER', status: 'CONFIRMED' },
+      select: { id: true, amountCents: true },
+    }),
+    prisma.payment.aggregate({
+      where: { wordId, kind: 'BOOST', status: 'CONFIRMED' },
+      _sum: { amountCents: true },
+    }),
+  ]);
+
+  const takeoverSpendCents = takeoverPayments
+    .filter((p) => p.id !== firstOwnership?.paymentId)
+    .reduce((sum, p) => sum + p.amountCents, 0);
+  const boostSpendCents = boostAgg._sum.amountCents ?? 0;
+
+  return {
+    takeoverCount: Math.max(0, takeoverPayments.length - 1),
+    takeoverSpendCents,
+    boostSpendCents,
+    competitiveSpendCents: takeoverSpendCents + boostSpendCents,
+  };
+}
+
 /** Recent ownership changes for the live feed. */
 export async function getRecentActivity(limit = 8) {
   return prisma.activity.findMany({
