@@ -118,6 +118,30 @@ export async function getRank(wordId: string): Promise<number | null> {
 }
 
 /**
+ * Where a bid of `amountCents` would rank TODAY, among words owned right now — the same
+ * "value DESC" rule getRank uses, just evaluated for a hypothetical amount instead of an
+ * existing word's stored value. Used to show a buyer their expected position before they pay,
+ * never a promise: the live board can move before their payment confirms, exactly like the
+ * price itself already can (see bidWins).
+ *
+ * A hypothetical bid always sorts behind any REAL word already at the same value — nothing has
+ * confirmed yet, so there is no tie to break in the new bid's favor — which is why this compares
+ * with `gte` directly instead of getRank's gt-plus-tiebreak dance: there is no id/ownedSince of
+ * its own yet to break a tie with.
+ */
+export async function getProjectedRank(amountCents: number, excludeWordId?: string): Promise<number> {
+  const above = await prisma.word.count({
+    where: {
+      blocked: false,
+      currentOwnershipId: { not: null },
+      ...(excludeWordId ? { id: { not: excludeWordId } } : {}),
+      valueCents: { gte: amountCents },
+    },
+  });
+  return above + 1;
+}
+
+/**
  * Records today's observed rank/value for a word — real, observed state only, never backfilled
  * or estimated. Upserted per (word, day), so repeated views on the same day just refresh today's
  * row. Best-effort: a write failure here must never break the page that triggered it.

@@ -12,6 +12,8 @@ type Availability = {
   minimumBidCents: number;
   owner?: { name: string };
   rank?: number | null;
+  /** Where the currently-entered amount would rank TODAY — see getProjectedRank. */
+  projectedRank?: number | null;
 };
 
 /**
@@ -34,8 +36,10 @@ export function ClaimForm({ initialWord }: { initialWord: string }) {
   const [submitting, setSubmitting] = useState(false);
 
   const normalized = normalizeWord(word);
+  const amountCents = parseUsdToCents(amount);
 
-  // Look up the live price whenever the word settles.
+  // Look up the live price — and, once a real amount is entered, the position it would rank at
+  // today — whenever the word or the amount settles.
   useEffect(() => {
     if (!normalized) {
       setAvailability(null);
@@ -45,7 +49,8 @@ export function ClaimForm({ initialWord }: { initialWord: string }) {
     const timer = setTimeout(async () => {
       setChecking(true);
       try {
-        const res = await fetch(`/api/words/${encodeURIComponent(normalized)}`, {
+        const query = amountCents && amountCents > 0 ? `?amount=${amountCents}` : '';
+        const res = await fetch(`/api/words/${encodeURIComponent(normalized)}${query}`, {
           signal: controller.signal,
         });
         const data = await res.json();
@@ -63,7 +68,7 @@ export function ClaimForm({ initialWord }: { initialWord: string }) {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [normalized]);
+  }, [normalized, amountCents]);
 
   // Prefill the minimum price until the buyer types their own number.
   useEffect(() => {
@@ -73,7 +78,6 @@ export function ClaimForm({ initialWord }: { initialWord: string }) {
   }, [availability, amountTouched]);
 
   const minimum = availability?.minimumBidCents ?? null;
-  const amountCents = parseUsdToCents(amount);
   const amountTooLow = minimum !== null && amountCents !== null && amountCents < minimum;
 
   async function submit(event: React.FormEvent) {
@@ -231,6 +235,16 @@ export function ClaimForm({ initialWord }: { initialWord: string }) {
         {amountTooLow && minimum !== null && (
           <p className="mt-1.5 text-xs text-gold">Minimum is {formatUsd(minimum)}.</p>
         )}
+        {/* The live position this exact amount would hold today — never shown for an amount
+            that wouldn't even win the word, so this can't be read as "pay less, still rank
+            here". A snapshot of the current board, not a promise about the one at payment time. */}
+        {!amountTooLow && availability?.projectedRank != null && (
+          <p className="mt-1.5 text-xs text-muted">
+            That would currently rank around{' '}
+            <span className="font-bold text-gold">#{availability.projectedRank}</span> on the
+            leaderboard — real positions move as other brands pay too.
+          </p>
+        )}
         <p className="mt-1.5 text-xs text-muted">
           Pay more to rank higher. The whole leaderboard is ordered by this number.
         </p>
@@ -243,13 +257,28 @@ export function ClaimForm({ initialWord }: { initialWord: string }) {
       )}
 
       <div className="rounded border border-line bg-surface-2 p-3 text-xs text-muted">
+        <p className="mb-1 font-bold text-text">What you get</p>
+        <ul className="list-disc space-y-1 pl-4">
+          <li>
+            Current ownership of <span className="text-text">{normalized.toUpperCase() || 'this word'}</span> on
+            WordBid, and your own public page for it at{' '}
+            <span className="text-text">/word/{normalized || '…'}</span>.
+          </li>
+          <li>
+            A real position on the leaderboard — higher rank means more potential visibility, but
+            it is competitive placement, never guaranteed traffic.
+          </li>
+          <li>Every real click and impression your word earns, tracked and visible on its own
+            performance page.</li>
+        </ul>
+      </div>
+
+      <div className="rounded border border-line bg-surface-2 p-3 text-xs text-muted">
         <p className="mb-1 font-bold text-text">Before you pay</p>
         <ul className="list-disc space-y-1 pl-4">
           <li>You are buying temporary placement on this site — not legal ownership of a word.</li>
           <li>Any brand can take this word from you at any time by paying more.</li>
           <li>Previous owners are not paid when a word changes hands.</li>
-          <li>Every real click and impression your word earns is tracked and visible to you on its
-            own performance page.</li>
           <li>No impressions, clicks, traffic or results are guaranteed.</li>
           <li>
             If someone outbids you while your payment is processing, you do not get the word and

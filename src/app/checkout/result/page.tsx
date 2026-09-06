@@ -127,6 +127,24 @@ export default async function CheckoutResultPage({
           </Link>
         </div>
 
+        {/* Real performance (impressions/clicks/CTR), always genuinely available the moment an
+            Ownership exists — even a brand-new one honestly starting at zero — and an optional,
+            never-required path to more visibility. A plain link, never a purchase button here:
+            same "performance vs. purchase decision" split the analytics page already draws. */}
+        <p className="mx-auto mt-6 max-w-sm text-xs text-muted">
+          <Link href={`${wordPath}/analytics`} className="underline underline-offset-2 hover:text-text">
+            View real performance →
+          </Link>
+          {!isBoost && rank !== null && rank > 1 && (
+            <>
+              {' · '}
+              <Link href={`${wordPath}#boost`} className="underline underline-offset-2 hover:text-text">
+                Want more visibility? →
+              </Link>
+            </>
+          )}
+        </p>
+
         {/* Optional, and only ever offered AFTER payment — never a condition of checking out.
             A boost never changes who owns the word, so there is nothing to be notified about. */}
         {!isBoost && (

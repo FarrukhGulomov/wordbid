@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach, afterAll } from 'vitest';
 import { confirmPayment } from '@/lib/ownership';
-import { getLeaderboard, getRank } from '@/lib/queries';
+import { getLeaderboard, getRank, getProjectedRank } from '@/lib/queries';
 import { db, resetDb, seedPendingPayment } from './helpers';
 
 beforeEach(resetDb);
@@ -85,5 +85,43 @@ describe('global leaderboard', () => {
     expect(board[0]!.bidRankScore).toBe(482000);
     expect(board[1]!.bidRankScore).toBe(100000);
     expect(board[0]!.bidRankScore).toBeGreaterThan(board[1]!.bidRankScore);
+  });
+});
+
+describe('getProjectedRank', () => {
+  it('is #1 on an empty board, for any amount', async () => {
+    expect(await getProjectedRank(100)).toBe(1);
+  });
+
+  it('slots a hypothetical amount into its honest position among real owned words', async () => {
+    await claim('ai', 'AcmeAI', 482000, 'e1');
+    await claim('video', 'VideoX', 321000, 'e2');
+    await claim('coding', 'DevX', 285000, 'e3');
+
+    expect(await getProjectedRank(500000)).toBe(1); // above everyone
+    expect(await getProjectedRank(300000)).toBe(3); // behind ai and video, ahead of coding
+    expect(await getProjectedRank(1)).toBe(4); // below everyone
+  });
+
+  it('ranks behind a REAL word already at the exact same value — nothing confirmed beats a real bid', async () => {
+    await claim('ai', 'AcmeAI', 100000, 'e1');
+    expect(await getProjectedRank(100000)).toBe(2);
+  });
+
+  it('excludes the word being claimed itself, so retaking your own word is not double-counted', async () => {
+    const word = await claim('coding', 'DevX', 100000, 'e1');
+    await claim('ai', 'AcmeAI', 200000, 'e2');
+
+    // Without excluding "coding", its own current 100000 would count against a hypothetical
+    // 100000 bid too, even though that exact value is about to be replaced by this payment.
+    expect(await getProjectedRank(100000, word.id)).toBe(2);
+    expect(await getProjectedRank(100000)).toBe(3);
+  });
+
+  it('never counts a blocked word as competition', async () => {
+    const word = await claim('spam', 'Spammer', 900000, 'e1');
+    await db.word.update({ where: { id: word.id }, data: { blocked: true } });
+
+    expect(await getProjectedRank(100)).toBe(1);
   });
 });

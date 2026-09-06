@@ -75,6 +75,12 @@ word's rank moves over time. Both now do.
 - The word page also shows the real, live cost to reach #1 (the same `minimumBidCents` step
   already used everywhere else, applied to the current #1's value) — not a separate pricing
   engine, just the existing one applied to a different row.
+- **Before paying**, the claim form shows where the entered amount would rank TODAY
+  (`getProjectedRank` in `src/lib/queries.ts`, surfaced via `GET /api/words/[word]?amount=`) —
+  the same "value DESC" comparison `getRank` already does, just against a hypothetical amount
+  instead of an existing word's stored value. Never shown for an amount that wouldn't even win
+  the word, and always framed as a live snapshot, not a promise: the board can move before the
+  payment confirms, exactly like the price itself already can.
 
 ### Discovery / the attention engine
 
@@ -97,6 +103,10 @@ over the same leaderboard data, never five parallel systems:
   `tests/discovery.test.ts` proves a costlier word with identical engagement never outranks a
   cheaper one.
 - **New** — most recently claimed, by `Word.ownedSince`, never gated by payment amount.
+- **Active** — not a ranking view at all, deliberately: it reuses the exact `Activity` rows the
+  homepage's own LIVE strip and `confirmPayment` already write (`getRecentActivity`), just more
+  of them. Every real claim, takeover, reclaim and boost, most recent first — the direct answer
+  to "a low-rank word is still real, current activity". No new feed, no new schema.
 
 Every view is a bounded read (at most two or three queries regardless of word count, scanning up
 to 500 owned words in memory) — no N+1, no per-request re-ranking of the whole board beyond that

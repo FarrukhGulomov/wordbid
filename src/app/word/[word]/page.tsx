@@ -146,14 +146,22 @@ export default async function WordPage({ params }: Props) {
           </div>
         </div>
 
-        {/* Primary purchase decision only: who owns it, what it's worth, what it costs to take.
-            Impressions/CTR/traffic history live behind VIEW ANALYTICS — this card must not
-            turn into an analytics dashboard. */}
-        <dl className="mt-5 grid grid-cols-3 gap-4 border-t border-line pt-4">
+        {/* Primary purchase decision, plus the one real number that most directly answers "is
+            anyone even seeing this at my rank" — impressions. Full CTR/traffic history still
+            lives behind VIEW ANALYTICS; this card must not turn into an analytics dashboard,
+            but a single honest "people saw this" figure belongs right where the owner is named. */}
+        <dl className="mt-5 grid grid-cols-2 gap-4 border-t border-line pt-4 sm:grid-cols-4">
           <div>
             <dt className="font-mono text-xs text-muted">CURRENT VALUE</dt>
             <dd className="tnum font-mono text-xl font-bold text-gold">
               {formatUsd(word.valueCents)}
+            </dd>
+          </div>
+          <div>
+            <dt className="font-mono text-xs text-muted">IMPRESSIONS</dt>
+            {/* Earned by the CURRENT owner only, same rule as clicks below — see performance. */}
+            <dd className="tnum font-mono text-xl font-bold">
+              {formatCount(performance?.impressions ?? 0)}
             </dd>
           </div>
           <div>

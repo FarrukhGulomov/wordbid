@@ -11,7 +11,7 @@ import { config } from '@/lib/config';
 // The leaderboard is the product; it must never be served stale.
 export const dynamic = 'force-dynamic';
 
-type Tab = 'top' | 'trending' | 'rising' | 'gems' | 'new';
+type Tab = 'top' | 'trending' | 'rising' | 'gems' | 'new' | 'active';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'top', label: '🏆 Top' },
@@ -19,12 +19,15 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'rising', label: '🚀 Rising' },
   { key: 'gems', label: '💎 Hidden Gems' },
   { key: 'new', label: '🆕 New' },
+  { key: 'active', label: '⚡ Active' },
 ];
 
 /**
- * Five views over one dataset (src/lib/discovery.ts) — never five parallel systems. Only `top`
- * is driven by payment; the other four are earned, real-data-only, and simply empty (never
- * fabricated) when there isn't yet enough activity to honestly back them.
+ * Six views over one dataset — never six parallel systems. Only `top` is driven by payment; the
+ * rest are earned, real-data-only, and simply empty (never fabricated) when there isn't yet
+ * enough activity to honestly back them. `active` is the one exception to "a leaderboard view":
+ * it reuses the SAME Activity rows the homepage's own LIVE strip and confirmPayment already
+ * write (src/lib/queries.ts#getRecentActivity) — a real event log, not a fifth ranking.
  */
 const TAB_COPY: Record<Tab, { description: string; empty: string }> = {
   top: {
@@ -48,10 +51,21 @@ const TAB_COPY: Record<Tab, { description: string; empty: string }> = {
     description: 'Most recently claimed, most recent first — never gated by payment amount.',
     empty: 'Nobody owns anything yet.',
   },
+  active: {
+    description: 'Every real claim, takeover, reclaim and boost, most recent first — rank is not the whole story.',
+    empty: 'No activity yet — be the first to claim a word.',
+  },
 };
 
 function isTab(value: string | undefined): value is Tab {
-  return value === 'top' || value === 'trending' || value === 'rising' || value === 'gems' || value === 'new';
+  return (
+    value === 'top' ||
+    value === 'trending' ||
+    value === 'rising' ||
+    value === 'gems' ||
+    value === 'new' ||
+    value === 'active'
+  );
 }
 
 export default async function HomePage({
@@ -62,7 +76,7 @@ export default async function HomePage({
   const { tab: rawTab } = await searchParams;
   const tab: Tab = isTab(rawTab) ? rawTab : 'top';
 
-  const [rows, activity, contested] = await Promise.all([
+  const [rows, activity, contested, activeFeed] = await Promise.all([
     tab === 'top'
       ? getLeaderboard(50)
       : tab === 'trending'
@@ -71,16 +85,19 @@ export default async function HomePage({
           ? getRisingWords(20)
           : tab === 'gems'
             ? getHiddenGems(20)
-            : getNewArrivals(20),
+            : tab === 'new'
+              ? getNewArrivals(20)
+              : Promise.resolve([]), // 'active' renders activeFeed below, not a LeaderboardRow list
     getRecentActivity(6),
     getMostFoughtOver(6),
+    tab === 'active' ? getRecentActivity(30) : Promise.resolve([]),
   ]);
 
   const copy = TAB_COPY[tab];
 
   return (
     <>
-      <ImpressionBeacon words={rows.map((row) => row.normalized)} />
+      {tab !== 'active' && <ImpressionBeacon words={rows.map((row) => row.normalized)} />}
 
       <section className="py-4 text-center sm:py-6">
         <h1 className="font-mono text-2xl font-black tracking-tighter sm:text-4xl">
@@ -132,7 +149,21 @@ export default async function HomePage({
 
         <p className="mb-3 text-xs text-muted">{copy.description}</p>
 
-        {rows.length === 0 ? (
+        {tab === 'active' ? (
+          activeFeed.length === 0 ? (
+            <div className="rounded border border-dashed border-line px-6 py-12 text-center">
+              <p className="font-mono text-base font-bold">{copy.empty}</p>
+              <Link
+                href="/claim"
+                className="mt-5 inline-block rounded bg-gold px-4 py-2 font-mono text-sm font-bold text-ink transition hover:opacity-85"
+              >
+                CLAIM THE FIRST WORD
+              </Link>
+            </div>
+          ) : (
+            <ActivityFeed entries={activeFeed} />
+          )
+        ) : rows.length === 0 ? (
           <div className="rounded border border-dashed border-line px-6 py-12 text-center">
             <p className="font-mono text-base font-bold">{copy.empty}</p>
             {(tab === 'top' || tab === 'new') && (
@@ -158,7 +189,9 @@ export default async function HomePage({
         )}
       </section>
 
-      <ActivityFeed entries={activity} />
+      {/* Suppressed on the 'active' tab — its own content above already IS this same feed, just
+          longer; showing it twice back to back would be redundant, not additive. */}
+      {tab !== 'active' && <ActivityFeed entries={activity} />}
 
       {contested.length > 0 && (
         <section className="mt-10">
