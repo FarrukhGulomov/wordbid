@@ -1,5 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect x="106" y="158" width="140" height="70" rx="10" fill="#f5c451"></rect>
-  <rect x="146" y="228" width="220" height="70" rx="10" fill="#9aa3b2"></rect>
-  <rect x="106" y="298" width="300" height="70" rx="10" fill="#f2f4f8"></rect>
+  <circle cx="196" cy="178" r="16" fill="#f5c451"></circle>
+  <circle cx="256" cy="140" r="16" fill="#f5c451"></circle>
+  <circle cx="316" cy="178" r="16" fill="#f5c451"></circle>
+  <text x="256" y="368" text-anchor="middle" font-family="ui-monospace,'SF Mono',Menlo,monospace" font-size="200" font-weight="800" fill="#f5c451">W</text>
+  <rect x="176" y="392" width="160" height="18" rx="9" fill="#f5c451"></rect>
 </svg>

@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440 110">
-  <g transform="translate(0,15)">
-    <rect x="0" y="21" width="37" height="19" rx="3" fill="#f5c451"></rect>
-    <rect x="0" y="41" width="58" height="19" rx="3" fill="#9aa3b2"></rect>
-    <rect x="0" y="61" width="80" height="19" rx="3" fill="#f2f4f8"></rect>
-  </g>
-  <text x="96" y="72" font-family="'JetBrains Mono',monospace" font-size="48" font-weight="800" letter-spacing="-1.5" fill="#f2f4f8">WORD<tspan fill="#f5c451">BID</tspan></text>
+  <circle cx="15" cy="19" r="4" fill="#f5c451"></circle>
+  <circle cx="31" cy="10" r="4" fill="#f5c451"></circle>
+  <circle cx="47" cy="19" r="4" fill="#f5c451"></circle>
+  <text x="0" y="76" font-family="ui-monospace,'SF Mono',Menlo,monospace" font-size="52" font-weight="800" letter-spacing="-1" fill="#f5c451">W</text>
+  <rect x="2" y="84" width="60" height="5" rx="2.5" fill="#f5c451"></rect>
+  <text x="74" y="76" font-family="ui-monospace,'SF Mono',Menlo,monospace" font-size="52" font-weight="800" letter-spacing="-1" fill="#f2f4f8">ORD<tspan fill="#f5c451">BID</tspan></text>
 </svg>
