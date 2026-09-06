@@ -84,10 +84,10 @@ export default async function HomePage({
 
       <section className="py-8 text-center sm:py-10">
         <h1 className="font-mono text-4xl font-black tracking-tighter sm:text-6xl">
-          DISCOVER WHAT&apos;S WINNING ON THE INTERNET
+          SEE WHO&apos;S GETTING ATTENTION ON THE INTERNET
         </h1>
         <p className="mt-2 text-base text-text sm:text-lg">
-          See the startups gaining attention before everyone else.
+          Rank is bought. Attention is real — see who&apos;s actually getting clicked and visited.
         </p>
         <p className="mt-1 text-sm text-muted">Every word has one owner. Until someone takes it.</p>
 

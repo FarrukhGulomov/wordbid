@@ -221,6 +221,8 @@ export function ClaimForm({ initialWord }: { initialWord: string }) {
           <li>You are buying temporary placement on this site — not legal ownership of a word.</li>
           <li>Any brand can take this word from you at any time by paying more.</li>
           <li>Previous owners are not paid when a word changes hands.</li>
+          <li>Every real click and impression your word earns is tracked and visible to you on its
+            own performance page.</li>
           <li>No impressions, clicks, traffic or results are guaranteed.</li>
           <li>
             If someone outbids you while your payment is processing, you do not get the word and

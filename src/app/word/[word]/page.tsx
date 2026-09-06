@@ -66,6 +66,7 @@ export default async function WordPage({ params }: Props) {
         >
           CLAIM {display}
         </Link>
+        <p className="mt-2 text-xs text-muted">One word. One owner.</p>
         <p className="mt-8 text-sm">
           <Link href="/" className="text-muted underline underline-offset-2 hover:text-text">
             ← See who owns the internet
