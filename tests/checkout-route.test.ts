@@ -1,5 +1,6 @@
-import { describe, expect, it, beforeEach, afterAll } from 'vitest';
+import { describe, expect, it, beforeEach, afterAll, vi } from 'vitest';
 import { POST } from '@/app/api/checkout/route';
+import * as siteMetadata from '@/lib/site-metadata';
 import { db, resetDb } from './helpers';
 
 beforeEach(resetDb);
@@ -149,6 +150,22 @@ describe('POST /api/checkout — owner identity', () => {
     expect(owner.logoUrl).toBe(original.logoUrl);
   });
 
+  it('a metadata fetch failure never breaks checkout for a brand-new domain', async () => {
+    // .invalid is reserved by RFC 2606 to never resolve, so the metadata fetch this triggers
+    // (no description submitted, no existing Owner) deterministically fails in any environment.
+    const response = await checkout({
+      word: 'ai',
+      brandName: 'NewBrand',
+      url: 'https://brand-new-domain-xyz.invalid',
+      amountCents: 1000,
+    });
+    expect(response.status).toBe(200);
+
+    const owner = await db.owner.findUniqueOrThrow({ where: { domain: 'brand-new-domain-xyz.invalid' } });
+    expect(owner.name).toBe('NewBrand');
+    expect(owner.description).toBeNull();
+  });
+
   it('still populates identity fields the first time a new domain checks out', async () => {
     await checkout({
       word: 'ai',
@@ -162,6 +179,34 @@ describe('POST /api/checkout — owner identity', () => {
     expect(owner.name).toBe('BrandNew');
     expect(owner.description).toBe('A fresh brand');
     expect(owner.url).toBe('https://brandnew.example/');
+  });
+
+  it('never refetches site metadata for an existing domain, even with no description submitted', async () => {
+    await checkout({
+      word: 'ai',
+      brandName: 'Acme',
+      url: 'https://devx.com',
+      amountCents: 1000,
+      description: 'Old description',
+    });
+
+    // A second checkout on the same domain, with no description field at all — the one case
+    // that would trigger a metadata fetch (needsMetadata) if the existing-owner check were
+    // ever removed or weakened. Proving the description is untouched isn't enough on its own
+    // here — this is specifically about the fetch never firing at all, so it's observed directly.
+    const spy = vi.spyOn(siteMetadata, 'fetchSiteMetadata');
+    const second = await checkout({
+      word: 'coding',
+      brandName: 'Acme Rebranded',
+      url: 'https://devx.com',
+      amountCents: 1000,
+    });
+    expect(second.status).toBe(200);
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+
+    const owner = await db.owner.findUniqueOrThrow({ where: { domain: 'devx.com' } });
+    expect(owner.description).toBe('Old description');
   });
 
   it('still confirms and grants ownership normally after reusing an existing Owner', async () => {

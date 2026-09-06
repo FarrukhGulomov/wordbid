@@ -27,4 +27,7 @@ export default defineConfig({
     testTimeout: 30_000,
   },
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
+  // Matches Next.js's own automatic JSX runtime, so a .tsx component under test needs no
+  // explicit React import — same as every component already in src/components.
+  esbuild: { jsx: 'automatic' },
 });

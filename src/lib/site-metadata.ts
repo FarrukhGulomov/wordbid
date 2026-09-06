@@ -27,11 +27,43 @@ function decodeEntities(text: string): string {
     .replace(/&nbsp;/g, ' ');
 }
 
+/**
+ * Removes any "<...>" sequence. A meta tag's content attribute should never contain markup, but
+ * a malformed page could still smuggle one in (raw, or revealed by decoding entities above) —
+ * this is belt-and-suspenders on top of React already escaping every string it renders as text.
+ */
+function stripHtml(text: string): string {
+  return text.replace(/<[^>]*>/g, ' ');
+}
+
+/** Normalizes, strips markup, and bounds a candidate value. Empty/whitespace-only => null. */
 function clean(value: string | undefined, max: number): string | null {
   if (!value) return null;
-  const text = decodeEntities(value).replace(/\s+/g, ' ').trim();
+  const text = stripHtml(decodeEntities(value)).replace(/\s+/g, ' ').trim();
   if (!text) return null;
   return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
+}
+
+/**
+ * Extracts and sanitizes title/description from raw HTML. Pure and network-free — the fetch
+ * wrapper below is the only caller in production, but keeping this separate lets the extraction
+ * and sanitization rules (source preference, HTML stripping, length bounds, empty rejection) be
+ * tested directly against crafted HTML, without a network round-trip.
+ *
+ * og:description is preferred over the plain meta description when both are present — it's the
+ * value a site curated for how it wants to be shown when shared, generally more reliable than an
+ * SEO meta description.
+ */
+export function parseSiteMetadata(html: string): SiteMetadata {
+  const ogTitle = /<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']*)["']/i.exec(html);
+  const titleTag = /<title[^>]*>([^<]*)<\/title>/i.exec(html);
+  const ogDescription = /<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']*)["']/i.exec(html);
+  const metaDescription = /<meta[^>]+name=["']description["'][^>]+content=["']([^"']*)["']/i.exec(html);
+
+  return {
+    title: clean(ogTitle?.[1] ?? titleTag?.[1], 60),
+    description: clean(ogDescription?.[1] ?? metaDescription?.[1], 160),
+  };
 }
 
 export async function fetchSiteMetadata(rawUrl: string): Promise<SiteMetadata> {
@@ -76,15 +108,7 @@ export async function fetchSiteMetadata(rawUrl: string): Promise<SiteMetadata> {
       }, new Uint8Array()),
     );
 
-    const ogTitle = /<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']*)["']/i.exec(html);
-    const titleTag = /<title[^>]*>([^<]*)<\/title>/i.exec(html);
-    const ogDescription = /<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']*)["']/i.exec(html);
-    const metaDescription = /<meta[^>]+name=["']description["'][^>]+content=["']([^"']*)["']/i.exec(html);
-
-    return {
-      title: clean(ogTitle?.[1] ?? titleTag?.[1], 60),
-      description: clean(ogDescription?.[1] ?? metaDescription?.[1], 160),
-    };
+    return parseSiteMetadata(html);
   } catch {
     return { title: null, description: null };
   } finally {

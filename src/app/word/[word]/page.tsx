@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { BrandLogo } from '@/components/BrandLogo';
+import { OwnerDescription } from '@/components/OwnerDescription';
 import { ImpressionBeacon } from '@/components/ImpressionBeacon';
 import { notFound } from 'next/navigation';
 import { getWordByNormalized, getWordCompetitiveSpend, getBoostCandidates, getLeaderboard } from '@/lib/queries';
@@ -137,16 +138,13 @@ export default async function WordPage({ params }: Props) {
           <div className="min-w-0">
             <p className="font-mono text-xs text-muted">👑 OWNED BY</p>
             <p className="truncate text-lg font-bold">{owner.name}</p>
+            <OwnerDescription description={owner.description} />
             {/* WordBid never verifies that a buyer controls the domain they check out with —
                 so this names the raw linked domain rather than implying an official, verified
                 claim by the brand shown above. */}
-            <p className="truncate text-xs text-muted">Linked website: {owner.domain}</p>
+            <p className="mt-1 truncate text-xs text-muted">Linked website: {owner.domain}</p>
           </div>
         </div>
-
-        {owner.description ? (
-          <p className="mt-3 text-sm text-muted">{owner.description}</p>
-        ) : null}
 
         {/* Primary purchase decision only: who owns it, what it's worth, what it costs to take.
             Impressions/CTR/traffic history live behind VIEW ANALYTICS — this card must not
