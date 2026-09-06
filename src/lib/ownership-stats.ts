@@ -20,6 +20,17 @@ export function calculateCtr(uniqueClicks: number, impressions: number): number 
 }
 
 /**
+ * Cost per valid click, in cents — what the current owner has paid for this ownership period
+ * (its live value, which already reflects the takeover price plus any boosts since — see
+ * confirmPayment's BOOST branch) divided by the clicks it has earned. Null with zero clicks,
+ * never Infinity or a divide-by-zero NaN.
+ */
+export function calculateCostPerClickCents(amountCents: number, validClicks: number): number | null {
+  if (validClicks <= 0) return null;
+  return amountCents / validClicks;
+}
+
+/**
  * Records one impression per (currently-owned) word in `normalizedWords` — called from the
  * client the moment a real browser actually rendered that word's listing (the leaderboard row
  * or its own word page). Unclaimed/blocked words and duplicates in the input are silently

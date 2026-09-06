@@ -3,13 +3,14 @@ import Link from 'next/link';
 import { BrandLogo } from '@/components/BrandLogo';
 import { ImpressionBeacon } from '@/components/ImpressionBeacon';
 import { notFound } from 'next/navigation';
-import { getWordByNormalized, getWordCompetitiveSpend } from '@/lib/queries';
+import { getWordByNormalized, getWordCompetitiveSpend, getBoostCandidates } from '@/lib/queries';
 import { getOwnershipPerformance } from '@/lib/ownership-stats';
 import { normalizeWord } from '@/lib/word';
 import { formatUsd, formatCount } from '@/lib/money';
-import { minimumBidCents } from '@/lib/pricing';
+import { minimumBidCents, boostTargetFor } from '@/lib/pricing';
 import { config, SITE_NAME } from '@/lib/config';
 import { shortAgo } from '@/lib/time';
+import { BoostActions } from '@/components/BoostActions';
 
 export const dynamic = 'force-dynamic';
 
@@ -77,6 +78,8 @@ export default async function WordPage({ params }: Props) {
   const history = word.ownerships;
   const performance = word.currentOwnership ? await getOwnershipPerformance(word.currentOwnership.id) : null;
   const competitive = await getWordCompetitiveSpend(word.id);
+  const boostCandidates = word.rank ? await getBoostCandidates(word.rank) : [];
+  const boostTargets = boostCandidates.map(boostTargetFor);
 
   return (
     <div className="py-10">
@@ -141,7 +144,7 @@ export default async function WordPage({ params }: Props) {
               href={`/word/${word.normalized}/analytics`}
               className="text-muted underline underline-offset-2 hover:text-text"
             >
-              VIEW ANALYTICS →
+              VIEW PERFORMANCE →
             </Link>
           </p>
         ) : null}
@@ -164,9 +167,18 @@ export default async function WordPage({ params }: Props) {
         <p className="mt-2 text-center text-xs text-muted">Paid placement. Not an endorsement.</p>
       </div>
 
+      {word.rank && (
+        <BoostActions
+          word={word.normalized}
+          currentRank={word.rank}
+          currentValueCents={word.valueCents}
+          targets={boostTargets}
+        />
+      )}
+
       <section className="mt-10">
         <h2 className="mb-1 font-mono text-xs font-bold tracking-widest text-muted">
-          HISTORY OF {display}
+          {competitive.takeoverCount > 0 ? `THE BATTLE FOR ${display}` : `HISTORY OF ${display}`}
         </h2>
         {/* Compact, real competitive proof — never shown for a word that has only ever had one
             owner, and the spend clause only when there has actually been any (never fabricated;
@@ -187,7 +199,12 @@ export default async function WordPage({ params }: Props) {
               className="flex flex-col gap-1 px-3 py-2.5 text-sm sm:flex-row sm:items-baseline sm:gap-3"
             >
               <div className="flex items-baseline gap-2 sm:min-w-0 sm:flex-1">
-                <span className="min-w-0 truncate font-medium">{period.owner.name}</span>
+                <span className="min-w-0 truncate font-medium">
+                  {/* A prior owner was, by definition, overtaken — the arrow marks that this
+                      period ended because someone else ranked higher, not just "time passed". */}
+                  {period.endedAt !== null && <span className="mr-1 text-muted">↑</span>}
+                  {period.owner.name}
+                </span>
                 {period.endedAt === null && <span className="text-xs font-bold text-gold">CURRENT</span>}
               </div>
               <div className="flex items-baseline gap-3 text-xs sm:shrink-0">

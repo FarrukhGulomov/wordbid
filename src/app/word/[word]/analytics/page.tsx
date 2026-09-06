@@ -1,14 +1,12 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getWordByNormalized, getBoostCandidates } from '@/lib/queries';
-import { getOwnershipPerformance } from '@/lib/ownership-stats';
-import { boostTargetFor } from '@/lib/pricing';
+import { getWordByNormalized } from '@/lib/queries';
+import { getOwnershipPerformance, calculateCostPerClickCents } from '@/lib/ownership-stats';
 import { normalizeWord } from '@/lib/word';
 import { formatUsd, formatCount } from '@/lib/money';
 import { shortDate } from '@/lib/time';
 import { SITE_NAME } from '@/lib/config';
-import { BoostActions } from '@/components/BoostActions';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +31,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
  * Public "OWNERSHIP PERFORMANCE" view — no login, because there is none in this product. This
  * shows the CURRENT ownership only (never mixes in a previous owner's numbers), which is the
  * same rule the word page and leaderboard already follow.
+ *
+ * Deliberately performance-only: raising your own rank (BOOST) lives on the word page, not
+ * here — "what did I get" and "want more visibility" are different decisions with different
+ * moments, and mixing the two turned this page into an accidental checkout flow.
  */
 export default async function OwnershipAnalyticsPage({ params }: Props) {
   const { word: raw } = await params;
@@ -45,18 +47,15 @@ export default async function OwnershipAnalyticsPage({ params }: Props) {
   const performance = await getOwnershipPerformance(word.currentOwnership.id);
   if (!performance) notFound();
 
-  const boostCandidates = word.rank ? await getBoostCandidates(word.rank) : [];
-  const boostTargets = boostCandidates.map(boostTargetFor);
-
   const display = word.display.toUpperCase();
   const owner = word.currentOwnership.owner;
+  const cpc = calculateCostPerClickCents(performance.amountCents, performance.validClicks);
 
   const stats: [string, string][] = [
     ['IMPRESSIONS', formatCount(performance.impressions)],
-    ['UNIQUE CLICKS', formatCount(performance.uniqueClicks)],
+    ['CLICKS DELIVERED', formatCount(performance.validClicks)],
     ['CTR', `${performance.ctr.toFixed(1)}%`],
-    ['CURRENT VALUE', formatUsd(performance.amountCents)],
-    ['STARTED', shortDate(performance.startedAt)],
+    ['COST / CLICK', cpc === null ? '—' : formatUsd(cpc)],
   ];
 
   return (
@@ -67,7 +66,7 @@ export default async function OwnershipAnalyticsPage({ params }: Props) {
       </h1>
       <p className="mt-1 text-sm text-muted">Current owner: {owner.name}</p>
 
-      <dl className="mt-6 grid grid-cols-2 gap-4 rounded border border-line bg-surface p-4 sm:grid-cols-3">
+      <dl className="mt-6 grid grid-cols-2 gap-4 rounded border border-line bg-surface p-4 sm:grid-cols-4">
         {stats.map(([label, value]) => (
           <div key={label}>
             <dt className="font-mono text-xs text-muted">{label}</dt>
@@ -75,6 +74,7 @@ export default async function OwnershipAnalyticsPage({ params }: Props) {
           </div>
         ))}
       </dl>
+      <p className="mt-2 text-xs text-muted">Started {shortDate(performance.startedAt)}</p>
 
       <section className="mt-8">
         <h2 className="mb-2 font-mono text-xs font-bold tracking-widest text-muted">TRAFFIC</h2>
@@ -109,8 +109,6 @@ export default async function OwnershipAnalyticsPage({ params }: Props) {
           </ul>
         </section>
       ) : null}
-
-      <BoostActions word={word.normalized} targets={boostTargets} />
 
       <p className="mt-10 text-sm">
         <Link

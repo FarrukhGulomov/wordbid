@@ -266,13 +266,30 @@ each period's numbers correctly isolated.
   project does not fabricate data it can't honestly measure.
 
 Public surfaces:
-- The word page shows **Clicks delivered**, **Impressions**, and **CTR** for the current
-  ownership, plus a **View analytics →** link.
-- `/word/<word>/analytics` is the full "Ownership Performance" view — impressions, unique clicks,
-  CTR, current value, start date, today/7-day traffic, and top referrers. It is public, not
+- The word page's primary card stays a purchase decision only — current value, clicks delivered,
+  takeover price — plus a **View performance →** link. Impressions/CTR/traffic never clutter it;
+  see **Design: performance vs. the purchase decision** below for why.
+- `/word/<word>/analytics` is the full "Ownership Performance" view, in priority order:
+  **impressions → clicks delivered → CTR → cost per click** (spend ÷ clicks, `—` not `Infinity`
+  at zero clicks), then start date, today/7-day traffic, and top referrers. It is public, not
   gated behind a login, because there is no owner authentication in this product at all (see
   **Not built**) — building one just to gate this page would be a much bigger feature than the
   page itself.
+
+### Design: performance vs. the purchase decision
+
+`VIEW PERFORMANCE` ("what did I get") and BOOST ("I want more visibility") are different jobs
+with different moments, so they live on different surfaces instead of one page trying to be
+both:
+
+- The **word page** is the commercial surface: who owns it, what it costs to take, and — right
+  under that, as an **OWNER ACTION** — the BOOST buttons, because "want more visibility" is a
+  decision made *while looking at the purchase card*, not after digging into a stats page.
+- `/word/<word>/analytics` is **performance only**. No BOOST button lives there anymore — mixing
+  "how did I do" with "pay to do better" made that page read as an accidental checkout flow.
+- Every BOOST button leads with what the owner actually **pays** — `BOOST TO #1 — PAY $40`, not
+  the resulting total value — because the difference is the real decision; a $50 headline number
+  hides how much of it the owner already has "banked" in the word's current value.
 
 ## Competitive proof
 

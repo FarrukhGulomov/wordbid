@@ -7,6 +7,7 @@ import {
   recordDailyClick,
   getOwnershipPerformance,
   calculateCtr,
+  calculateCostPerClickCents,
   dayBucketOf,
 } from '@/lib/ownership-stats';
 import { db, resetDb, seedPendingPayment } from './helpers';
@@ -39,6 +40,16 @@ describe('calculateCtr', () => {
     expect(calculateCtr(0, 0)).toBe(0);
     expect(calculateCtr(5, 0)).toBe(0);
     expect(Number.isFinite(calculateCtr(0, 0))).toBe(true);
+  });
+});
+
+describe('calculateCostPerClickCents', () => {
+  it('is spend over valid clicks', () => {
+    expect(calculateCostPerClickCents(10000, 40)).toBe(250); // $100 / 40 clicks = $2.50/click
+  });
+
+  it('is null with zero clicks — never Infinity or a fake number', () => {
+    expect(calculateCostPerClickCents(10000, 0)).toBeNull();
   });
 });
 

@@ -6,11 +6,26 @@ import { formatUsd } from '@/lib/money';
 type Target = { rank: number; targetValueCents: number };
 
 /**
- * BOOST RANK — the current owner pays only the difference to raise their word's value and move
- * up the leaderboard. Deliberately just a few preset buttons, no custom-amount form: BOOST is
- * meant to stay a lightweight action, not a bidding dashboard.
+ * OWNER ACTION — the current owner pays only the DIFFERENCE to raise their word's value and
+ * move up the leaderboard. Lives on the word page itself (not buried in analytics) because
+ * "want more visibility" is a commercial decision, not a performance-review one — see the
+ * word page for where this is mounted.
+ *
+ * The button leads with what the owner actually pays (PAY $X), never the resulting total value
+ * — a $40 difference converts better and reads more honestly than a $50 headline number that
+ * hides how much of it the owner already has "banked" in the word's current value.
  */
-export function BoostActions({ word, targets }: { word: string; targets: Target[] }) {
+export function BoostActions({
+  word,
+  currentRank,
+  currentValueCents,
+  targets,
+}: {
+  word: string;
+  currentRank: number;
+  currentValueCents: number;
+  targets: Target[];
+}) {
   const [pending, setPending] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,28 +54,36 @@ export function BoostActions({ word, targets }: { word: string; targets: Target[
   }
 
   return (
-    <section className="mt-8">
-      <h2 className="mb-2 font-mono text-xs font-bold tracking-widest text-muted">BOOST RANK</h2>
+    <section className="mt-6">
+      <h2 className="mb-1 font-mono text-xs font-bold tracking-widest text-muted">OWNER ACTION</h2>
       <p className="mb-3 text-xs text-muted">
-        Defend or improve your rank — pay the difference to raise your word&apos;s value. You
-        keep the word — this is not a takeover.
+        Want more visibility? Pay the difference to raise your rank — you keep the word, this is
+        not a takeover.
       </p>
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-        {targets.map((t) => (
-          <button
-            key={t.rank}
-            type="button"
-            disabled={pending !== null}
-            onClick={() => boost(t.targetValueCents)}
-            className="rounded border border-gold px-3 py-2 text-left font-mono text-xs font-bold text-gold transition hover:bg-gold hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {pending === t.targetValueCents
-              ? 'STARTING…'
-              : t.rank === 1
-                ? `BOOST TO #1 — ${formatUsd(t.targetValueCents)}`
-                : `BOOST ABOVE #${t.rank} — ${formatUsd(t.targetValueCents)}`}
-          </button>
-        ))}
+        {targets.map((t) => {
+          const payCents = t.targetValueCents - currentValueCents;
+          return (
+            <button
+              key={t.rank}
+              type="button"
+              disabled={pending !== null}
+              onClick={() => boost(t.targetValueCents)}
+              className="rounded border border-gold px-3 py-2 text-left font-mono text-gold transition hover:bg-gold hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <span className="block text-xs font-bold">
+                {pending === t.targetValueCents
+                  ? 'STARTING…'
+                  : t.rank === 1
+                    ? `BOOST TO #1 — PAY ${formatUsd(payCents)}`
+                    : `BOOST ABOVE #${t.rank} — PAY ${formatUsd(payCents)}`}
+              </span>
+              <span className="mt-0.5 block text-[10px] font-normal opacity-70">
+                #{currentRank} {formatUsd(currentValueCents)} → new value {formatUsd(t.targetValueCents)}
+              </span>
+            </button>
+          );
+        })}
       </div>
       {error && (
         <p

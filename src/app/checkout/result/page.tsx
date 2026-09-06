@@ -96,7 +96,7 @@ export default async function CheckoutResultPage({
 
   if (payment.status === 'REFUNDED' || payment.status === 'REFUND_PENDING') {
     const retryPath = isBoost
-      ? `/word/${payment.word.normalized}/analytics`
+      ? `/word/${payment.word.normalized}`
       : `/claim?word=${encodeURIComponent(payment.word.normalized)}`;
     return (
       <div className="py-16 text-center">
@@ -132,7 +132,7 @@ export default async function CheckoutResultPage({
 
   if (payment.status === 'FAILED' || payment.status === 'CANCELED') {
     const retryPath = isBoost
-      ? `/word/${payment.word.normalized}/analytics`
+      ? `/word/${payment.word.normalized}`
       : `/claim?word=${encodeURIComponent(payment.word.normalized)}`;
     return (
       <div className="py-16 text-center">
