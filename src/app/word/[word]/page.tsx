@@ -137,6 +137,10 @@ export default async function WordPage({ params }: Props) {
           <div className="min-w-0">
             <p className="font-mono text-xs text-muted">👑 OWNED BY</p>
             <p className="truncate text-lg font-bold">{owner.name}</p>
+            {/* WordBid never verifies that a buyer controls the domain they check out with —
+                so this names the raw linked domain rather than implying an official, verified
+                claim by the brand shown above. */}
+            <p className="truncate text-xs text-muted">Linked website: {owner.domain}</p>
           </div>
         </div>
 
@@ -193,7 +197,9 @@ export default async function WordPage({ params }: Props) {
             TAKE FOR {formatUsd(takePrice)}
           </Link>
         </div>
-        <p className="mt-2 text-center text-xs text-muted">Paid placement. Not an endorsement.</p>
+        <p className="mt-2 text-center text-xs text-muted">
+          Paid placement. Domain not verified. Not an endorsement.
+        </p>
       </div>
 
       {/* SEO-facing summary of exactly the real facts already shown above, in prose form for

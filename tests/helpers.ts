@@ -23,12 +23,13 @@ export async function seedPendingPayment(opts: {
     update: {},
     create: { normalized: opts.word, display: opts.word.toUpperCase() },
   });
-  // Mirrors the checkout route: one Owner row per canonical domain, reused across calls.
+  // Mirrors the checkout route: one Owner row per canonical domain, reused across calls, and
+  // never overwritten by a later call against the same domain.
   const url = opts.url ?? `https://${opts.brand.toLowerCase()}.example`;
   const domain = canonicalDomain(new URL(url).hostname);
   const owner = await db.owner.upsert({
     where: { domain },
-    update: { name: opts.brand, url },
+    update: {},
     create: { domain, name: opts.brand, url },
   });
   const payment = await db.payment.create({

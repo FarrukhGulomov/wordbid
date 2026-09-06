@@ -94,19 +94,19 @@ export async function POST(request: Request) {
   }
 
   // Pull a short description off the destination so the buyer writes no profile. Best effort
-  // only — a slow or hostile site must never block a claim — and skipped when we already have
-  // one on file, so a later fetch failure never wipes out a good description.
-  const needsMetadata = !input.description && !existingOwner?.description;
+  // only — a slow or hostile site must never block a claim — and only attempted for a brand-new
+  // owner: an existing owner's profile is never touched by an unauthenticated checkout (see the
+  // upsert below), so there is nothing to fill in for one.
+  const needsMetadata = !existingOwner && !input.description;
   const metadata = needsMetadata ? await fetchSiteMetadata(urlCheck.url) : null;
 
+  // An unauthenticated checkout must never be able to overwrite an existing brand's identity —
+  // name, URL, logo, description — just by submitting the same domain again; anyone can type in
+  // any domain, so "same domain" is not proof of "same person". An existing Owner is reused
+  // as-is; only a genuinely new domain gets its profile populated from this checkout.
   const owner = await prisma.owner.upsert({
     where: { domain },
-    update: {
-      name: input.brandName,
-      url: urlCheck.url,
-      logoUrl: faviconUrlFor(urlCheck.url),
-      description: input.description || metadata?.description || existingOwner?.description || null,
-    },
+    update: {},
     create: {
       domain,
       name: input.brandName,

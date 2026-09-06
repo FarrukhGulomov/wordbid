@@ -102,7 +102,70 @@ describe('POST /api/checkout — owner identity', () => {
     expect(await db.payment.count()).toBe(0);
   });
 
-  it('updates the stored name and description on a repeat checkout', async () => {
+  it('never overwrites an existing Owner\'s name or description from an unauthenticated checkout', async () => {
+    await checkout({
+      word: 'ai',
+      brandName: 'Acme',
+      url: 'https://devx.com',
+      amountCents: 1000,
+      description: 'Old description',
+    });
+    // Nothing proves this second checkout is submitted by the same brand — anyone can type
+    // "devx.com" into the form. It must reuse the existing Owner row, not rewrite its identity.
+    const second = await checkout({
+      word: 'coding',
+      brandName: 'Acme Rebranded',
+      url: 'https://devx.com',
+      amountCents: 1000,
+      description: 'New description',
+    });
+    expect(second.status).toBe(200);
+
+    const owner = await db.owner.findUniqueOrThrow({ where: { domain: 'devx.com' } });
+    expect(owner.name).toBe('Acme');
+    expect(owner.description).toBe('Old description');
+  });
+
+  it('never overwrites an existing Owner\'s URL or logo from an unauthenticated checkout', async () => {
+    await checkout({
+      word: 'ai',
+      brandName: 'Acme',
+      url: 'https://devx.com/original',
+      amountCents: 1000,
+      description: 'x',
+    });
+    const original = await db.owner.findUniqueOrThrow({ where: { domain: 'devx.com' } });
+
+    await checkout({
+      word: 'coding',
+      brandName: 'Acme',
+      url: 'https://devx.com/hijacked-path',
+      amountCents: 1000,
+      description: 'x',
+    });
+
+    const owner = await db.owner.findUniqueOrThrow({ where: { domain: 'devx.com' } });
+    expect(owner.url).toBe(original.url);
+    expect(owner.logoUrl).toBe(original.logoUrl);
+  });
+
+  it('still populates identity fields the first time a new domain checks out', async () => {
+    await checkout({
+      word: 'ai',
+      brandName: 'BrandNew',
+      url: 'https://brandnew.example',
+      amountCents: 1000,
+      description: 'A fresh brand',
+    });
+
+    const owner = await db.owner.findUniqueOrThrow({ where: { domain: 'brandnew.example' } });
+    expect(owner.name).toBe('BrandNew');
+    expect(owner.description).toBe('A fresh brand');
+    expect(owner.url).toBe('https://brandnew.example/');
+  });
+
+  it('still confirms and grants ownership normally after reusing an existing Owner', async () => {
+    const { confirmPayment } = await import('@/lib/ownership');
     await checkout({
       word: 'ai',
       brandName: 'Acme',
@@ -114,12 +177,15 @@ describe('POST /api/checkout — owner identity', () => {
       word: 'coding',
       brandName: 'Acme Rebranded',
       url: 'https://devx.com',
-      amountCents: 1000,
+      amountCents: 2000,
       description: 'New description',
     });
 
-    const owner = await db.owner.findUniqueOrThrow({ where: { domain: 'devx.com' } });
-    expect(owner.name).toBe('Acme Rebranded');
-    expect(owner.description).toBe('New description');
+    const payment = await db.payment.findFirstOrThrow({ where: { wordId: (await db.word.findUniqueOrThrow({ where: { normalized: 'coding' } })).id } });
+    const result = await confirmPayment('mock', 'evt-1', payment.providerReference, db);
+    expect(result.outcome).toBe('won');
+
+    const word = await db.word.findUniqueOrThrow({ where: { normalized: 'coding' } });
+    expect(word.valueCents).toBe(2000);
   });
 });
