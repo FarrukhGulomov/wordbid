@@ -6,7 +6,10 @@ import { safeFetch } from './safe-fetch';
  *
  * Safety rules, because this fetches a URL the user chose:
  *   - the URL is validated first (no internal hosts, no non-http schemes);
- *   - redirects are NOT followed, so a public URL cannot bounce us to an internal one;
+ *   - a redirect is followed only after its OWN target has passed that same validation — see
+ *     fetchWithValidatedRedirects. A destination is never handed to fetch()'s built-in
+ *     redirect:'follow', which would let a server bounce us anywhere without our SSRF checks
+ *     ever seeing the real target;
  *   - a short timeout and a read cap keep a hostile server from tying up a request.
  *
  * Any failure returns nulls. Fetching metadata must never block a claim.
@@ -14,6 +17,7 @@ import { safeFetch } from './safe-fetch';
 
 const TIMEOUT_MS = 3000;
 const MAX_BYTES = 100_000;
+const MAX_REDIRECTS = 3;
 
 export type SiteMetadata = { title: string | null; description: string | null };
 
@@ -45,6 +49,36 @@ function clean(value: string | undefined, max: number): string | null {
 }
 
 /**
+ * Reads one HTML attribute's value out of a single already-isolated tag, quoted or not
+ * (`attr="x"`, `attr='x'`, `attr=x`) — independent of where else in the tag it sits.
+ */
+function attrValue(tag: string, attr: string): string | undefined {
+  const match = new RegExp(`${attr}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i').exec(tag);
+  if (!match) return undefined;
+  return match[1] ?? match[2] ?? match[3];
+}
+
+/**
+ * Finds the first `<meta>` tag whose `attr` matches `value` and returns its `content`. Scans
+ * each tag as a whole and reads its attributes independently, so it doesn't matter whether
+ * content, name or property come first, last, or in between — real pages write these in either
+ * order (a real-world site with content-before-property is exactly what motivated this).
+ */
+function findMetaContent(html: string, attr: 'property' | 'name', value: string): string | undefined {
+  // A quoted attribute value can itself contain ">" (e.g. unescaped markup smuggled into
+  // content="...") — matching a run of non-quote characters OR a fully-quoted string, rather
+  // than just "up to the next >", keeps such a ">" from prematurely ending the tag match.
+  const metaTags = html.match(/<meta\b(?:[^"'>]|"[^"]*"|'[^']*')*>/gi) ?? [];
+  for (const tag of metaTags) {
+    if (attrValue(tag, attr)?.toLowerCase() === value) {
+      const content = attrValue(tag, 'content');
+      if (content !== undefined) return content;
+    }
+  }
+  return undefined;
+}
+
+/**
  * Extracts and sanitizes title/description from raw HTML. Pure and network-free — the fetch
  * wrapper below is the only caller in production, but keeping this separate lets the extraction
  * and sanitization rules (source preference, HTML stripping, length bounds, empty rejection) be
@@ -55,15 +89,44 @@ function clean(value: string | undefined, max: number): string | null {
  * SEO meta description.
  */
 export function parseSiteMetadata(html: string): SiteMetadata {
-  const ogTitle = /<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']*)["']/i.exec(html);
-  const titleTag = /<title[^>]*>([^<]*)<\/title>/i.exec(html);
-  const ogDescription = /<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']*)["']/i.exec(html);
-  const metaDescription = /<meta[^>]+name=["']description["'][^>]+content=["']([^"']*)["']/i.exec(html);
+  const ogTitle = findMetaContent(html, 'property', 'og:title');
+  const titleTag = /<title[^>]*>([^<]*)<\/title>/i.exec(html)?.[1];
+  const ogDescription = findMetaContent(html, 'property', 'og:description');
+  const metaDescription = findMetaContent(html, 'name', 'description');
 
   return {
-    title: clean(ogTitle?.[1] ?? titleTag?.[1], 60),
-    description: clean(ogDescription?.[1] ?? metaDescription?.[1], 160),
+    title: clean(ogTitle ?? titleTag, 60),
+    description: clean(ogDescription ?? metaDescription, 160),
   };
+}
+
+/**
+ * Follows a redirect chain by hand, one hop at a time, instead of handing the destination to
+ * fetch()'s own redirect:'follow'. That option would let a server's Location header take us
+ * anywhere with no chance for our own checks to see the real target first. Here, every hop's
+ * target is re-run through validateDestinationUrl — the exact same public-URL/SSRF check the
+ * original owner-submitted URL went through — before it's ever fetched. A destination that
+ * redirects to something disallowed (an internal host, a non-http(s) scheme, credentials in the
+ * URL, too many hops) simply stops the chain; the caller's try/catch turns that into nulls.
+ */
+async function fetchWithValidatedRedirects(
+  url: string,
+  init: RequestInit,
+  hopsLeft: number = MAX_REDIRECTS,
+): Promise<Response> {
+  const response = await safeFetch(url, { ...init, redirect: 'manual' });
+
+  const isRedirect = response.status >= 300 && response.status < 400;
+  const location = response.headers.get('location');
+  if (!isRedirect || !location) return response;
+
+  if (hopsLeft <= 0) throw new Error('Too many redirects');
+
+  const nextUrl = new URL(location, url).toString();
+  const revalidated = validateDestinationUrl(nextUrl);
+  if (!revalidated.ok) throw new Error('Redirect target failed validation');
+
+  return fetchWithValidatedRedirects(revalidated.url, init, hopsLeft - 1);
 }
 
 export async function fetchSiteMetadata(rawUrl: string): Promise<SiteMetadata> {
@@ -74,9 +137,8 @@ export async function fetchSiteMetadata(rawUrl: string): Promise<SiteMetadata> {
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
   try {
-    const response = await safeFetch(validated.url, {
+    const response = await fetchWithValidatedRedirects(validated.url, {
       signal: controller.signal,
-      redirect: 'error',
       headers: { 'User-Agent': 'WordBid/1.0 (+link preview)', Accept: 'text/html' },
       cache: 'no-store',
     });

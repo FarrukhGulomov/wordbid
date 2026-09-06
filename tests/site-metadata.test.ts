@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { parseSiteMetadata, fetchSiteMetadata } from '@/lib/site-metadata';
+import * as safeFetchModule from '@/lib/safe-fetch';
 
 describe('parseSiteMetadata', () => {
   it('prefers og:description over the plain meta description', () => {
@@ -61,6 +62,48 @@ describe('parseSiteMetadata', () => {
     expect(description).not.toContain('</script>');
     expect(description).toBe('Safe text alert(1) after');
   });
+
+  // Regression: numeo.ai produced no Owner.description because its meta tags write `content`
+  // BEFORE `property`/`name` — the old regex required property/name to come first in the tag,
+  // so it silently matched nothing. findMetaContent scans each tag as a whole and reads its
+  // attributes independently, so attribute order can never matter again.
+  it('reads og:description from a numeo.ai-style tag with content before property', () => {
+    const html = `<html><head>
+      <meta content="Numeo helps you track and predict everything numeric." property="og:description">
+    </head></html>`;
+    expect(parseSiteMetadata(html).description).toBe('Numeo helps you track and predict everything numeric.');
+  });
+
+  it('reads the plain meta description with content before name', () => {
+    const html = `<meta content="A plain SEO description." name="description">`;
+    expect(parseSiteMetadata(html).description).toBe('A plain SEO description.');
+  });
+
+  it('still prefers og:description over meta description when both use reversed attribute order', () => {
+    const html = `<html><head>
+      <meta content="The plain one." name="description">
+      <meta content="The curated one." property="og:description">
+    </head></html>`;
+    expect(parseSiteMetadata(html).description).toBe('The curated one.');
+  });
+
+  it('reads og:title with content before property, falling back to it over <title>', () => {
+    const html = `<html><head>
+      <title>Fallback Title</title>
+      <meta content="Numeo — Track Everything" property="og:title">
+    </head></html>`;
+    expect(parseSiteMetadata(html).title).toBe('Numeo — Track Everything');
+  });
+
+  it('handles an unquoted content attribute', () => {
+    const html = `<meta property=og:description content=Short-and-unquoted>`;
+    expect(parseSiteMetadata(html).description).toBe('Short-and-unquoted');
+  });
+
+  it('is case-insensitive on the attribute name/value match', () => {
+    const html = `<META CONTENT="Upper case tag and attrs." PROPERTY="OG:DESCRIPTION">`;
+    expect(parseSiteMetadata(html).description).toBe('Upper case tag and attrs.');
+  });
 });
 
 describe('fetchSiteMetadata', () => {
@@ -74,5 +117,70 @@ describe('fetchSiteMetadata', () => {
   it('returns nulls immediately for a destination validateDestinationUrl rejects', async () => {
     const result = await fetchSiteMetadata('http://localhost:9999');
     expect(result).toEqual({ title: null, description: null });
+  });
+});
+
+describe('fetchSiteMetadata — redirect handling', () => {
+  it('follows a safe redirect to its validated target and reads metadata from there', async () => {
+    const spy = vi.spyOn(safeFetchModule, 'safeFetch');
+    spy
+      .mockImplementationOnce(async () =>
+        new Response(null, { status: 301, headers: { location: 'https://redirected-target.example/' } }),
+      )
+      .mockImplementationOnce(
+        async () =>
+          new Response('<meta property="og:description" content="Reached after redirect.">', {
+            status: 200,
+            headers: { 'content-type': 'text/html' },
+          }),
+      );
+
+    const result = await fetchSiteMetadata('https://original-domain.example');
+
+    expect(result.description).toBe('Reached after redirect.');
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(spy.mock.calls[1]![0]).toBe('https://redirected-target.example/');
+    spy.mockRestore();
+  });
+
+  it('never fetches a redirect target that fails SSRF/public-URL validation', async () => {
+    const spy = vi.spyOn(safeFetchModule, 'safeFetch');
+    spy.mockImplementationOnce(
+      async () => new Response(null, { status: 302, headers: { location: 'http://127.0.0.1/internal-admin' } }),
+    );
+
+    const result = await fetchSiteMetadata('https://looks-safe-but-redirects.example');
+
+    // Exactly one call — the unsafe target is never fetched, only checked and rejected.
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ title: null, description: null });
+    spy.mockRestore();
+  });
+
+  it('rejects a redirect to a non-http(s) target the same way', async () => {
+    const spy = vi.spyOn(safeFetchModule, 'safeFetch');
+    spy.mockImplementationOnce(
+      async () => new Response(null, { status: 302, headers: { location: 'file:///etc/passwd' } }),
+    );
+
+    const result = await fetchSiteMetadata('https://redirects-to-file.example');
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ title: null, description: null });
+    spy.mockRestore();
+  });
+
+  it('stops after a bounded number of redirects instead of following an endless chain', async () => {
+    const spy = vi.spyOn(safeFetchModule, 'safeFetch').mockImplementation(async (url) => {
+      const n = Number(String(url).match(/hop(\d+)/)?.[1] ?? '0');
+      return new Response(null, { status: 302, headers: { location: `https://chain.example/hop${n + 1}` } });
+    });
+
+    const result = await fetchSiteMetadata('https://chain.example/hop0');
+
+    expect(result).toEqual({ title: null, description: null });
+    // One initial call plus at most MAX_REDIRECTS follow-ups — never unbounded.
+    expect(spy.mock.calls.length).toBeLessThanOrEqual(5);
+    spy.mockRestore();
   });
 });
