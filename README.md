@@ -176,10 +176,12 @@ npm run build      # production build
 | `CLICK_HASH_SALT` | **yes** | — | Salt for hashing visitor IP+UA. Long random string. Raw IPs are never stored |
 | `ADMIN_TOKEN` | **yes** | — | Password for `/admin`. Long random string, min 8 chars |
 | `NEXT_PUBLIC_SITE_URL` | **yes in prod** | `http://localhost:3000` | Canonical origin; used for checkout redirects, OG tags and the sitemap |
-| `PAYMENT_PROVIDER` | no | `mock` | `stripe` or `mock`. **`mock` is refused in production** unless `ALLOW_MOCK_PAYMENTS=true` |
+| `PAYMENT_PROVIDER` | no | `mock` | `stripe`, `nowpayments` or `mock`. **`mock` is refused in production** unless `ALLOW_MOCK_PAYMENTS=true` |
 | `STRIPE_SECRET_KEY` | with Stripe | — | Stripe secret key |
 | `STRIPE_WEBHOOK_SECRET` | with Stripe | — | Signing secret for the webhook endpoint |
 | `STRIPE_CURRENCY` | no | `usd` | Checkout currency |
+| `NOWPAYMENTS_API_KEY` | with NOWPayments | — | NOWPayments API key |
+| `NOWPAYMENTS_IPN_SECRET` | with NOWPayments | — | IPN signing secret, used to verify `x-nowpayments-sig` |
 | `STARTING_PRICE_CENTS` | no | `1000` | Price of an unclaimed word ($10) |
 | `TAKEOVER_INCREMENT_PERCENT` | no | `5` | Minimum premium to take an owned word |
 | `MAX_AMOUNT_CENTS` | no | `10000000` | Ceiling on a single claim ($100,000) |
@@ -200,6 +202,55 @@ npm run build      # production build
 
 Until these are set, `PAYMENT_PROVIDER=stripe` fails loudly at the first checkout rather than
 pretending to work.
+
+### Connecting NOWPayments (crypto)
+
+`src/lib/payments/nowpayments.ts` implements the exact same `PaymentProvider` interface Stripe
+and the mock provider do — see **Where the money rules live**. It ships with **no real
+credentials, wallet addresses, or live API calls anywhere in this repo**: `NOWPAYMENTS_API_KEY`
+and `NOWPAYMENTS_IPN_SECRET` are placeholders in `.env.example`, and the class throws loudly at
+construction if either is missing, exactly like `StripePaymentProvider` does for its own keys.
+Nothing here is exercised unless an operator explicitly sets `PAYMENT_PROVIDER=nowpayments` with
+real values.
+
+**Before enabling it for real payments, an authorized NOWPayments account owner must:**
+
+1. Create a NOWPayments account and complete whatever KYC/business verification NOWPayments
+   itself requires for the account — this repo does not perform, replace, or check that.
+2. Generate an API key in the NOWPayments dashboard and set `NOWPAYMENTS_API_KEY`.
+3. Generate (or view) the account's IPN secret key and set `NOWPAYMENTS_IPN_SECRET` — this is
+   what verifies every incoming callback actually came from NOWPayments (`x-nowpayments-sig`,
+   HMAC-SHA512 over the IPN body's keys sorted alphabetically).
+4. Point the account's IPN callback URL at `https://<your-domain>/api/webhooks/payments` — the
+   same single webhook endpoint every provider already shares.
+5. Set `PAYMENT_PROVIDER=nowpayments` and `NEXT_PUBLIC_SITE_URL`.
+6. Decide which cryptocurrencies to accept in the NOWPayments dashboard — this integration lets
+   the buyer choose on NOWPayments' own hosted invoice page; nothing here picks a coin.
+
+**What this integration deliberately does NOT do:**
+
+- **Refunds.** `refund()` always throws. A crypto refund needs a wallet address to send money
+  back to, which this integration never collects from the buyer — there is nowhere to send it.
+  A NOWPayments payment that loses the takeover race lands in `/admin`'s "REFUNDS NEEDING
+  ATTENTION" list like any failed refund attempt, for a human to resolve directly in the
+  NOWPayments dashboard. This is the same reconciliation path every provider already uses (see
+  **Refunds** below) — nothing provider-specific was added to it.
+- **Amount verification against the webhook.** Like every provider, `confirmPayment` never
+  trusts a webhook's own reported amount — it only ever re-checks the bid against
+  `Word.valueCents` and applies `Payment.amountCents` already stored in our own database at
+  checkout time (see **Payment correctness**). A crypto IPN's amount is in the coin the buyer
+  paid with, not USD cents, and is never compared against anything; it is carried through
+  `WebhookEvent.amountCents` purely for shape-parity with the other providers' events.
+- **Confirming on-chain "confirmed" status.** NOWPayments' `payment_status` moves through
+  `waiting` → `confirming` → `confirmed` → `finished` (plus `failed`/`expired`/`partially_paid`/
+  `refunded`). Only `finished` — money actually settled and credited — is treated as a
+  successful payment; every earlier status is acknowledged and ignored, never applied.
+
+**The age/eligibility notice.** When `PAYMENT_PROVIDER=nowpayments`, both the claim form and the
+BOOST buttons show a plain, inline "Crypto payments — 18+ only" notice (`CryptoPaymentNotice`) —
+never a modal, matching WordBid's no-interstitial checkout everywhere else. It is disclosure, not
+verification: it does not check anyone's age, and does not replace whatever KYC or eligibility
+checks NOWPayments applies on its own hosted invoice page.
 
 ## Deploying
 

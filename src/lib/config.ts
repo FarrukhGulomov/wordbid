@@ -34,6 +34,10 @@ export const config = {
   get paymentProvider(): string {
     return process.env.PAYMENT_PROVIDER || 'mock';
   },
+  /** Whether checkout is currently a crypto payment — drives the age/eligibility notice only. */
+  get isCryptoPayment(): boolean {
+    return this.paymentProvider === 'nowpayments';
+  },
   /** "console" (default, logs only) or "resend" — see src/lib/notifications. */
   get notificationProvider(): string {
     return process.env.NOTIFICATION_PROVIDER || 'console';

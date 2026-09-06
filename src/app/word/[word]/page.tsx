@@ -235,6 +235,7 @@ export default async function WordPage({ params }: Props) {
           currentRank={word.rank}
           currentValueCents={word.valueCents}
           targets={boostTargets}
+          isCrypto={config.isCryptoPayment}
         />
       )}
 

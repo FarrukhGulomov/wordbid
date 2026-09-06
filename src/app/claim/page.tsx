@@ -5,6 +5,7 @@ import { normalizeWord } from '@/lib/word';
 import { getMetrics } from '@/lib/metrics';
 import { getTotalVisitors } from '@/lib/attention';
 import { formatCount, formatUsd } from '@/lib/money';
+import { config } from '@/lib/config';
 
 export const metadata: Metadata = {
   title: 'Claim a word',
@@ -45,7 +46,7 @@ export default async function ClaimPage({
         </p>
       )}
       <Suspense>
-        <ClaimForm initialWord={initialWord} />
+        <ClaimForm initialWord={initialWord} isCrypto={config.isCryptoPayment} />
       </Suspense>
     </div>
   );

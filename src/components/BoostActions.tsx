@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { formatUsd } from '@/lib/money';
+import { CryptoPaymentNotice } from '@/components/CryptoPaymentNotice';
 
 type Target = { rank: number; targetValueCents: number };
 
@@ -24,11 +25,13 @@ export function BoostActions({
   currentRank,
   currentValueCents,
   targets,
+  isCrypto = false,
 }: {
   word: string;
   currentRank: number;
   currentValueCents: number;
   targets: Target[];
+  isCrypto?: boolean;
 }) {
   const [pending, setPending] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -98,6 +101,11 @@ export function BoostActions({
         >
           {error}
         </p>
+      )}
+      {isCrypto && (
+        <div className="mt-3">
+          <CryptoPaymentNotice />
+        </div>
       )}
     </section>
   );

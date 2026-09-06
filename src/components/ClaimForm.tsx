@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { normalizeWord } from '@/lib/word';
 import { formatUsd, parseUsdToCents } from '@/lib/money';
+import { CryptoPaymentNotice } from '@/components/CryptoPaymentNotice';
 
 type Availability = {
   normalized: string;
@@ -22,7 +23,7 @@ type Availability = {
  * The price shown here is indicative. The bid is re-checked against the live value when the
  * payment confirms, so a word can still be lost to a competing takeover mid-checkout.
  */
-export function ClaimForm({ initialWord }: { initialWord: string }) {
+export function ClaimForm({ initialWord, isCrypto = false }: { initialWord: string; isCrypto?: boolean }) {
   const [word, setWord] = useState(initialWord);
   const [brandName, setBrandName] = useState('');
   const [url, setUrl] = useState('');
@@ -286,6 +287,8 @@ export function ClaimForm({ initialWord }: { initialWord: string }) {
           </li>
         </ul>
       </div>
+
+      {isCrypto && <CryptoPaymentNotice />}
 
       <button
         type="submit"
