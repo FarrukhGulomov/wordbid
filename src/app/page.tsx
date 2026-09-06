@@ -82,24 +82,24 @@ export default async function HomePage({
     <>
       <ImpressionBeacon words={rows.map((row) => row.normalized)} />
 
-      <section className="py-8 text-center sm:py-10">
-        <h1 className="font-mono text-4xl font-black tracking-tighter sm:text-6xl">
+      <section className="py-4 text-center sm:py-6">
+        <h1 className="font-mono text-2xl font-black tracking-tighter sm:text-4xl">
           SEE WHO&apos;S GETTING ATTENTION ON THE INTERNET
         </h1>
-        <p className="mt-2 text-base text-text sm:text-lg">
+        <p className="mt-1.5 text-sm text-text sm:text-base">
           Rank is bought. Attention is real — see who&apos;s actually getting clicked and visited.
         </p>
-        <p className="mt-1 text-sm text-muted">Every word has one owner. Until someone takes it.</p>
+        <p className="text-xs text-muted">Every word has one owner. Until someone takes it.</p>
 
-        <div className="mx-auto mt-6 max-w-md">
+        <div className="mx-auto mt-3 max-w-md sm:mt-4">
           <WordSearch />
-          <p className="mt-2 text-xs text-muted">
+          <p className="mt-1.5 text-xs text-muted">
             Unclaimed words start at {formatUsd(config.startingPriceCents)}. Owned words cost{' '}
             {config.takeoverIncrementPercent}% more than the current price.
           </p>
         </div>
 
-        <p className="mt-4 text-xs">
+        <p className="mt-2 text-xs">
           <Link href="/claim" className="text-muted underline underline-offset-2 hover:text-text">
             Have a startup? Compete for attention →
           </Link>
@@ -112,7 +112,7 @@ export default async function HomePage({
             against the container's inner edge, where it reads as clipped rather than scrollable.
             Reverts to normal, non-bled padding at sm+ where the tabs already fit without scrolling. */}
         <nav
-          className="-mx-4 mb-4 flex gap-1 overflow-x-auto px-4 border-b border-line sm:mx-0 sm:px-0"
+          className="-mx-4 mb-3 flex gap-1 overflow-x-auto px-4 border-b border-line sm:mx-0 sm:px-0"
           aria-label="Discovery views"
         >
           {TABS.map((t) => (
@@ -130,7 +130,7 @@ export default async function HomePage({
           ))}
         </nav>
 
-        <p className="mb-4 text-xs text-muted">{copy.description}</p>
+        <p className="mb-3 text-xs text-muted">{copy.description}</p>
 
         {rows.length === 0 ? (
           <div className="rounded border border-dashed border-line px-6 py-12 text-center">
