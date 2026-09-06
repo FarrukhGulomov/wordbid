@@ -52,6 +52,30 @@ never changes who owns the word, never touches the ownership period, and never r
   row lock, the second always builds on top of what it just locked. If the word changed owner
   before a boost confirms, the boost loses and is refunded, exactly like a losing takeover bid.
 
+### BidRank & rank history
+
+Ranking has always been server-authoritative — the client never supplies rank, only a bid
+amount, and the leaderboard is always computed live from `Word.valueCents` at read time. What
+was missing was a *named, centralized, extensible* place for that to live, and a record of how a
+word's rank moves over time. Both now do.
+
+- **`src/lib/bidrank.ts`** — `computeBidRank({ bidStrengthCents })`. Today bid strength (the
+  word's confirmed value) is the only signal that can be calculated reliably and honestly; the
+  module exists so a future signal (quality, engagement, trust, freshness) is a weight added
+  here, not a rewrite of the leaderboard query or the payment path. The weights are internal —
+  never exposed on any public API or client bundle — and today's weights make
+  `computeBidRank` numerically identical to `bidStrengthCents` alone, so this changed nothing
+  about current ranking behavior; `tests/bidrank.test.ts` locks that down.
+- **`RankSnapshot`** (one row per word per day) records the word's real, observed rank and value
+  whenever its page is actually viewed (`getWordByNormalized`) — never backfilled or estimated.
+  It powers the word page's position-gained/lost badge (`▲ UP 2` / `▼ DOWN 1`, shown only when a
+  real prior observation exists — never a fabricated "no change") and is deliberately generic
+  enough to also become the substrate for momentum/trending and reputation history later without
+  a schema rewrite.
+- The word page also shows the real, live cost to reach #1 (the same `minimumBidCents` step
+  already used everywhere else, applied to the current #1's value) — not a separate pricing
+  engine, just the existing one applied to a different row.
+
 ### Payment correctness
 
 1. **Verified.** The webhook signature is checked against the raw request body. Bad signature → 400.
@@ -290,3 +314,15 @@ current architecture decision — `Payment.kind` already generalises cleanly (BO
 `Ownership` periods already carry everything a Today/Weekly view would need to re-slice by date,
 and nothing here relies on ranking being anything other than a live, deterministic sort. The
 reason they're not built is scope, not a wall to knock down later.
+
+Also deliberately deferred, evaluated against `RankSnapshot` and the rest of v1.2's own request:
+a reputation/"WordBid Score" system, category leaderboards, momentum/trending badges ("Fastest
+Rising", "Trending"), a generic historical event graph, and shareable viral achievement badges.
+Each needs either real accumulated history this young a platform doesn't have yet (reputation,
+momentum — awarding either off a handful of observations would mean fabricating confidence the
+data doesn't support) or new schema surface that deserves its own careful pass rather than being
+rushed in alongside a ranking change (`Word.category`, a badges API). None of them are blocked:
+`RankSnapshot` is exactly the substrate momentum and reputation history would read from, and
+`Activity` + `Ownership` + `Click` + `OwnershipDailyStat` + `RankSnapshot` together already are
+the historical event graph — a fifth, generic "event" table logging the same facts a second time
+would be duplication, not new capability.

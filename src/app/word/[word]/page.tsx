@@ -82,8 +82,18 @@ export default async function WordPage({ params }: Props) {
     <div className="py-10">
       <ImpressionBeacon words={[word.normalized]} />
 
-      <p className="font-mono text-xs tracking-widest text-muted">
-        {word.rank ? `GLOBAL RANK #${word.rank}` : 'UNRANKED'}
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-xs tracking-widest text-muted">
+        <span>{word.rank ? `GLOBAL RANK #${word.rank}` : 'UNRANKED'}</span>
+        {/* Only ever shown when there's a real prior observation to compare against — see
+            getRankDeltaSince. No "steady" badge for a zero change; nothing fabricated. */}
+        {word.rankDelta !== null && word.rankDelta !== 0 && (
+          <span className={word.rankDelta > 0 ? 'text-gold' : 'text-muted'}>
+            {word.rankDelta > 0 ? `▲ UP ${word.rankDelta}` : `▼ DOWN ${Math.abs(word.rankDelta)}`}
+          </span>
+        )}
+        {word.costToReachNumberOneCents !== null && (
+          <span>· {formatUsd(word.costToReachNumberOneCents)} to take #1</span>
+        )}
       </p>
       <h1 className="mt-1 font-mono text-4xl font-black uppercase tracking-tighter sm:text-5xl">
         {display}

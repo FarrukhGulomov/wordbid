@@ -42,8 +42,8 @@ export function BoostActions({ word, targets }: { word: string; targets: Target[
     <section className="mt-8">
       <h2 className="mb-2 font-mono text-xs font-bold tracking-widest text-muted">BOOST RANK</h2>
       <p className="mb-3 text-xs text-muted">
-        Pay the difference to increase your word&apos;s value and global rank. You keep the
-        word — this is not a takeover.
+        Defend or improve your rank — pay the difference to raise your word&apos;s value. You
+        keep the word — this is not a takeover.
       </p>
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         {targets.map((t) => (

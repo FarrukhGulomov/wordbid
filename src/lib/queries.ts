@@ -1,6 +1,8 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from './db';
 import { minimumBidCents } from './pricing';
+import { computeBidRank } from './bidrank';
+import { dayBucketOf } from './ownership-stats';
 
 /**
  * Read models for the public surfaces.
@@ -20,9 +22,16 @@ export type LeaderboardRow = {
   ownerUrl: string;
   ownerLogoUrl: string | null;
   minimumBidCents: number;
+  /** The authoritative BidRank score behind this row's position. Not rendered — see bidrank.ts. */
+  bidRankScore: number;
 };
 
-/** The ranking order, in one place: value first, then the earlier ownership, then a stable id. */
+/**
+ * The ranking order, in one place: value first, then the earlier ownership, then a stable id.
+ * `valueCents` here IS the word's BidRank score today — see src/lib/bidrank.ts for why sorting
+ * by this one indexed column is equivalent to sorting by BidRank as long as bid strength is the
+ * only weighted signal, and what changes the day a second signal joins it.
+ */
 const RANK_ORDER: Prisma.WordOrderByWithRelationInput[] = [
   { valueCents: 'desc' },
   { ownedSince: 'asc' },
@@ -58,6 +67,7 @@ export async function getLeaderboard(limit = 50, skip = 0): Promise<LeaderboardR
         ownerUrl: owner.url,
         ownerLogoUrl: owner.logoUrl,
         minimumBidCents: minimumBidCents(word.valueCents),
+        bidRankScore: computeBidRank({ bidStrengthCents: word.valueCents }),
       },
     ];
   });
@@ -99,6 +109,37 @@ export async function getRank(wordId: string): Promise<number | null> {
   return above + 1;
 }
 
+/**
+ * Records today's observed rank/value for a word — real, observed state only, never backfilled
+ * or estimated. Upserted per (word, day), so repeated views on the same day just refresh today's
+ * row. Best-effort: a write failure here must never break the page that triggered it.
+ */
+async function recordRankSnapshot(wordId: string, rank: number, valueCents: number): Promise<void> {
+  try {
+    await prisma.rankSnapshot.upsert({
+      where: { wordId_day: { wordId, day: dayBucketOf(new Date()) } },
+      update: { rank, valueCents },
+      create: { wordId, day: dayBucketOf(new Date()), rank, valueCents },
+    });
+  } catch (err) {
+    console.error('recordRankSnapshot failed', err);
+  }
+}
+
+/**
+ * Rank change since the most recent PRIOR day a snapshot exists for — not necessarily
+ * yesterday, just the last time this word's rank was actually observed before today. Positive
+ * means the word moved up (a smaller rank number); null means there is no prior observation to
+ * compare against, in which case nothing should be shown — never a fabricated "no change".
+ */
+async function getRankDeltaSince(wordId: string, currentRank: number): Promise<number | null> {
+  const previous = await prisma.rankSnapshot.findFirst({
+    where: { wordId, day: { lt: dayBucketOf(new Date()) } },
+    orderBy: { day: 'desc' },
+  });
+  return previous ? previous.rank - currentRank : null;
+}
+
 export type WordDetail = NonNullable<Awaited<ReturnType<typeof getWordByNormalized>>>;
 
 /** Full word page payload: current owner, price to take it, and the complete history. */
@@ -115,9 +156,24 @@ export async function getWordByNormalized(normalized: string) {
   });
   if (!word || word.blocked) return null;
 
+  const rank = await getRank(word.id);
+
+  let rankDelta: number | null = null;
+  let costToReachNumberOneCents: number | null = null;
+  if (rank !== null) {
+    rankDelta = await getRankDeltaSince(word.id, rank);
+    await recordRankSnapshot(word.id, rank, word.valueCents);
+    if (rank > 1) {
+      const [topRow] = await getLeaderboard(1, 0);
+      if (topRow) costToReachNumberOneCents = minimumBidCents(topRow.valueCents);
+    }
+  }
+
   return {
     ...word,
-    rank: await getRank(word.id),
+    rank,
+    rankDelta,
+    costToReachNumberOneCents,
     minimumBidCents: minimumBidCents(word.valueCents),
   };
 }

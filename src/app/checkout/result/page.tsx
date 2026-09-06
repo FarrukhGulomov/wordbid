@@ -101,7 +101,7 @@ export default async function CheckoutResultPage({
     return (
       <div className="py-16 text-center">
         <p className="font-mono text-xs tracking-widest text-muted">
-          {isBoost ? 'BOOST DID NOT APPLY' : 'WORD NOT WON'}
+          {isBoost ? 'BOOST DID NOT APPLY' : 'YOU WERE OUTBID'}
         </p>
         <h1 className="mt-3 font-mono text-2xl font-black tracking-tight sm:text-3xl">
           {isBoost ? `${wordDisplay} WAS NOT BOOSTED` : `SOMEONE GOT ${wordDisplay} FIRST`}

@@ -60,10 +60,11 @@ model Word {
   blocked            Boolean    @default(false)
   createdAt          DateTime   @default(now())
 
-  ownerships Ownership[] @relation("WordOwnerships")
-  payments   Payment[]
-  activities Activity[]
-  clicks     Click[]
+  ownerships    Ownership[]    @relation("WordOwnerships")
+  payments      Payment[]
+  activities    Activity[]
+  clicks        Click[]
+  rankSnapshots RankSnapshot[]
 
   // Leaderboard read path: value DESC, then earliest ownership first.
   @@index([blocked, valueCents, ownedSince])
@@ -129,6 +130,24 @@ model OwnershipDailyStat {
   clicks      Int       @default(0)
 
   @@unique([ownershipId, day])
+  @@index([day])
+}
+
+/// One row per (word, day) — the word's rank and value as last really observed. Written
+/// opportunistically whenever a word's rank is computed for a real page view (see
+/// getWordByNormalized) — never backfilled, interpolated or estimated. This is the substrate
+/// for "position gained/lost" today, and for momentum/trending and reputation history later
+/// (see src/lib/bidrank.ts) — deliberately generic enough to serve all three without a rewrite.
+model RankSnapshot {
+  id         String   @id @default(cuid())
+  wordId     String
+  word       Word     @relation(fields: [wordId], references: [id])
+  day        DateTime
+  rank       Int
+  valueCents Int
+  createdAt  DateTime @default(now())
+
+  @@unique([wordId, day])
   @@index([day])
 }
 

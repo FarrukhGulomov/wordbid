@@ -76,4 +76,14 @@ describe('global leaderboard', () => {
     const board = await getLeaderboard();
     expect(board[0]!.minimumBidCents).toBe(105000);
   });
+
+  it('exposes each row\'s authoritative BidRank score, matching the leaderboard order', async () => {
+    await claim('coding', 'DevX', 100000, 'e1');
+    await claim('ai', 'AcmeAI', 482000, 'e2');
+
+    const board = await getLeaderboard();
+    expect(board[0]!.bidRankScore).toBe(482000);
+    expect(board[1]!.bidRankScore).toBe(100000);
+    expect(board[0]!.bidRankScore).toBeGreaterThan(board[1]!.bidRankScore);
+  });
 });
