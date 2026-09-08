@@ -3,6 +3,7 @@ import { getPaymentProvider } from '@/lib/payments';
 import { confirmPayment, failPayment } from '@/lib/ownership';
 import { reconcileRefund } from '@/lib/refunds';
 import { getNotificationProvider } from '@/lib/notifications';
+import { prisma } from '@/lib/db';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -63,8 +64,23 @@ export async function POST(request: Request) {
   }
 
   if (result.outcome === 'unknown_payment') {
-    // Do not ask the provider to retry forever for a reference we will never recognise.
-    console.warn('webhook: no payment for reference', event.reference);
+    // Do not ask the provider to retry forever for a reference we will never recognise — but
+    // this is real captured money the provider says arrived with nothing on our side to apply it
+    // to (see F02), so it must not just scroll away in logs. confirmPayment already created this
+    // exact WebhookEvent row (provider, eventId) as its own idempotency guard, before it ever
+    // looked for a matching payment — flag that same row so it surfaces in /admin rather than
+    // relying on whoever operates this deployment to notice a console line.
+    console.error('webhook: no payment for reference — needs manual attention', event.reference);
+    await prisma.webhookEvent
+      .update({
+        where: { provider_eventId: { provider: provider.name, eventId: event.eventId } },
+        data: { providerReference: event.reference, needsAttention: 'unknown_payment' },
+      })
+      .catch((err) => {
+        // Best-effort: the payment itself is unaffected either way, and this must never turn an
+        // already-successful webhook response into a failure the provider would just retry.
+        console.error('webhook: failed to flag unknown_payment WebhookEvent for admin review', err);
+      });
     return NextResponse.json({ received: true, result: result.outcome });
   }
 
