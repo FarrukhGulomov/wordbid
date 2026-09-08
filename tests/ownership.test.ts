@@ -351,3 +351,39 @@ describe('failPayment', () => {
     expect(await failPayment('mock', 'evt_f', payment.providerReference, db)).toBe('duplicate');
   });
 });
+
+describe('confirmPayment — F08: confirmation enforces the same minimum checkout does', () => {
+  it('rejects a captured bid that only beats the raw live value, not the configured minimum premium', async () => {
+    const first = await seedPendingPayment({ word: 'coding', brand: 'DevX', amountCents: 1000 });
+    await confirmPayment('mock', 'evt_1', first.payment.providerReference, db);
+
+    // Live value now 1000 -> minimumBidCents(1000) = 1050. Exactly the minimum still wins.
+    const second = await seedPendingPayment({ word: 'coding', brand: 'CodeAI', amountCents: 1050 });
+    const r2 = await confirmPayment('mock', 'evt_2', second.payment.providerReference, db);
+    expect(r2.outcome).toBe('won');
+
+    // Live value now 1050 -> minimumBidCents(1050) = 1103. A captured 1060 beats the raw 1050
+    // value but not the configured 5% premium — this is the exact gap F08 identified: checkout
+    // would have rejected 1060 outright (it enforces minimumBidCents), but confirmation used to
+    // accept it anyway via a bare `bid > liveValue` check.
+    const stale = await seedPendingPayment({ word: 'coding', brand: 'SlowCo', amountCents: 1060 });
+    const r3 = await confirmPayment('mock', 'evt_3', stale.payment.providerReference, db);
+    expect(r3.outcome).toBe('lost');
+
+    const wordAfter = await db.word.findUniqueOrThrow({ where: { normalized: 'coding' } });
+    expect(wordAfter.valueCents).toBe(1050); // unchanged by the rejected 1060 bid
+    const stalePayment = await db.payment.findUniqueOrThrow({ where: { id: stale.payment.id } });
+    expect(stalePayment.status).toBe('REFUND_PENDING');
+
+    // 1103 is the live minimum and must still win.
+    const winning = await seedPendingPayment({ word: 'coding', brand: 'FastCo', amountCents: 1103 });
+    const r4 = await confirmPayment('mock', 'evt_4', winning.payment.providerReference, db);
+    expect(r4.outcome).toBe('won');
+  });
+
+  it('still accepts a first claim exactly at the configured starting price', async () => {
+    const { payment } = await seedPendingPayment({ word: 'freshword', brand: 'A', amountCents: 1000 });
+    const result = await confirmPayment('mock', 'evt_1', payment.providerReference, db);
+    expect(result.outcome).toBe('won');
+  });
+});
