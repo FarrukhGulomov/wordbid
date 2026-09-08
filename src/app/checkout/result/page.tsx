@@ -11,7 +11,7 @@ import { PendingRefresh } from '@/components/PendingRefresh';
 import { ShareButtons } from '@/components/ShareButtons';
 import { NotifyEmailForm } from '@/components/NotifyEmailForm';
 import { notifyEmailSchema } from '@/lib/validation';
-import { setOwnerNotifyEmail } from '@/lib/notify-email';
+import { setOwnerNotifyEmail, maskEmailForDisplay } from '@/lib/notify-email';
 import { rateLimit } from '@/lib/ratelimit';
 import { clientIpFrom } from '@/lib/clicks';
 
@@ -152,7 +152,11 @@ export default async function CheckoutResultPage({
             <NotifyEmailForm
               action={setNotifyEmail}
               paymentId={payment.id}
-              currentEmail={payment.owner.notifyEmail}
+              // Owner is keyed by domain, which is never verified — see F04 in
+              // src/lib/notify-email.ts. Whoever is looking at THIS confirmation page may not be
+              // the same buyer who set this address, so only a masked form is ever shown, and
+              // the raw address is never used to prefill the input (see NotifyEmailForm).
+              maskedCurrentEmail={payment.owner.notifyEmail ? maskEmailForDisplay(payment.owner.notifyEmail) : null}
               wordDisplay={wordDisplay}
             />
           </div>

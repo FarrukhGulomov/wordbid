@@ -12,6 +12,28 @@ import { prisma } from './db';
  */
 export type SetNotifyEmailResult = { outcome: 'saved' } | { outcome: 'not_eligible' };
 
+/**
+ * Masks an email for display back to whoever is currently looking at a payment's confirmation
+ * page — see F04: Owner is keyed purely by destination DOMAIN, which is text anyone can type
+ * into checkout, never something we verify control of. Two completely unrelated buyers can both
+ * submit the same domain (one now, one months later) and land on the same Owner row, so a value
+ * set by the FIRST one must never be shown in full to the second — that would hand a stranger's
+ * real contact address to whoever next happens to type in the same domain string. Masking still
+ * lets the legitimate original brand recognise "yes, that's my address" without exposing it to
+ * anyone else who only shares the domain in name.
+ */
+export function maskEmailForDisplay(email: string): string {
+  const at = email.indexOf('@');
+  if (at <= 0) return '••••••';
+  const local = email.slice(0, at);
+  const domain = email.slice(at + 1);
+  const maskedLocal = local[0] + '•'.repeat(Math.max(local.length - 1, 1));
+  const dot = domain.lastIndexOf('.');
+  const maskedDomain =
+    dot > 0 ? '•'.repeat(Math.max(dot, 1)) + domain.slice(dot) : '•'.repeat(Math.max(domain.length, 1));
+  return `${maskedLocal}@${maskedDomain}`;
+}
+
 export async function setOwnerNotifyEmail(paymentId: string, email: string): Promise<SetNotifyEmailResult> {
   const payment = await prisma.payment.findUnique({ where: { id: paymentId } });
   if (!payment || payment.status !== 'CONFIRMED' || payment.kind !== 'TAKEOVER') {

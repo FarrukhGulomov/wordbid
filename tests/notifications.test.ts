@@ -77,6 +77,34 @@ describe('ResendNotificationProvider', () => {
     fetchSpy.mockRestore();
   });
 
+  // F12: newOwnerName/previousOwnerName are Owner.name — buyer-supplied free text from checkout
+  // (checkoutSchema's brandName, up to 60 chars, no HTML restriction) — and wordDisplay is
+  // attacker-influenced too. Interpolated unescaped into this HTML email, a brand name like
+  // `<img src=x onerror=alert(1)>` would execute in any mail client that renders HTML — this is
+  // a stored HTML-injection into an email actually sent to a real address, not merely reflected.
+  it('HTML-escapes buyer-controlled names so they cannot break out of the email markup', async () => {
+    process.env.RESEND_API_KEY = 'test_key';
+    process.env.RESEND_FROM_EMAIL = 'notify@wordbid.example';
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 200 }));
+
+    const hostileNotice: TakeoverNotice = {
+      ...notice,
+      newOwnerName: '<img src=x onerror=alert(1)>',
+      previousOwnerName: '</strong><script>alert(2)</script>',
+      wordDisplay: '"><b>pwned</b>',
+    };
+    await new ResendNotificationProvider().sendTakeoverNotice(hostileNotice);
+
+    const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+    expect(body.html).not.toContain('<img src=x onerror=alert(1)>');
+    expect(body.html).not.toContain('<script>alert(2)</script>');
+    expect(body.html).not.toContain('"><b>pwned</b>');
+    expect(body.html).toContain('&lt;img src=x onerror=alert(1)&gt;');
+    expect(body.html).toContain('&lt;script&gt;alert(2)&lt;/script&gt;');
+
+    fetchSpy.mockRestore();
+  });
+
   it('throws with the response body when Resend responds with a non-ok status', async () => {
     process.env.RESEND_API_KEY = 'test_key';
     process.env.RESEND_FROM_EMAIL = 'notify@wordbid.example';

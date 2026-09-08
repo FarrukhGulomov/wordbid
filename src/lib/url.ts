@@ -1,3 +1,6 @@
+import net from 'node:net';
+import { isPrivateIPv4, isPrivateIPv6 } from './ip-guard';
+
 /**
  * Destination URL validation.
  *
@@ -5,19 +8,12 @@
  * addresses. Anything that could point back inside our own network is rejected.
  */
 
-const BLOCKED_HOST_PATTERNS: RegExp[] = [
-  /^localhost$/i,
-  /\.local$/i,
-  /\.internal$/i,
-  /^127\./,
-  /^0\./,
-  /^10\./,
-  /^192\.168\./,
-  /^172\.(1[6-9]|2\d|3[01])\./,
-  /^169\.254\./,
-  /^\[?::1\]?$/,
-  /^\[?f[cd][0-9a-f]{2}:/i,
-];
+// Only for hostnames that are NOT literal IP addresses — a name like "db.internal" that a
+// literal-IP check can never catch. A hostname that IS a literal IPv4/IPv6 address is checked
+// against isPrivateIPv4/isPrivateIPv6 below instead (see F03: this used to also carry its own
+// separate, less complete IPv6 regexes, which is exactly how a literal IPv6 address written in a
+// form those regexes didn't anticipate could slip through).
+const BLOCKED_HOST_NAME_PATTERNS: RegExp[] = [/^localhost$/i, /\.local$/i, /\.internal$/i];
 
 /** Schemes that can execute or read local resources. */
 const ALLOWED_PROTOCOLS = new Set(['http:', 'https:']);
@@ -49,12 +45,23 @@ export function validateDestinationUrl(input: string): UrlValidation {
   }
 
   const host = parsed.hostname;
-  // A hostname with no dot is either a bare local name or an internal alias.
-  if (!host.includes('.') && !host.startsWith('[')) {
-    return { ok: false, error: 'Enter a full public domain, for example example.com.' };
-  }
-  if (BLOCKED_HOST_PATTERNS.some((re) => re.test(host))) {
-    return { ok: false, error: 'That URL is not allowed.' };
+  // The WHATWG URL parser always returns a bracketed literal for an IPv6 host (e.g. "[::1]");
+  // strip the brackets to get the address text isPrivateIPv6 actually parses.
+  const bareHost = host.startsWith('[') && host.endsWith(']') ? host.slice(1, -1) : host;
+  const ipVersion = net.isIP(bareHost);
+
+  if (ipVersion === 4) {
+    if (isPrivateIPv4(bareHost)) return { ok: false, error: 'That URL is not allowed.' };
+  } else if (ipVersion === 6) {
+    if (isPrivateIPv6(bareHost)) return { ok: false, error: 'That URL is not allowed.' };
+  } else {
+    // A hostname with no dot is either a bare local name or an internal alias.
+    if (!host.includes('.')) {
+      return { ok: false, error: 'Enter a full public domain, for example example.com.' };
+    }
+    if (BLOCKED_HOST_NAME_PATTERNS.some((re) => re.test(host))) {
+      return { ok: false, error: 'That URL is not allowed.' };
+    }
   }
 
   // Drop the fragment; keep path and query so deep links work.

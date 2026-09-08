@@ -1,5 +1,8 @@
 import dns from 'node:dns';
 import { Agent, fetch as undiciFetch } from 'undici';
+import { isPrivateIPv4, isPrivateIPv6 } from './ip-guard';
+
+export { isPrivateIPv4, isPrivateIPv6 };
 
 /**
  * SSRF-safe outbound fetch.
@@ -24,41 +27,6 @@ import { Agent, fetch as undiciFetch } from 'undici';
  *
  * Use `safeFetch` for any request driven by a user-supplied URL that runs on the server.
  */
-
-export function isPrivateIPv4(ip: string): boolean {
-  const parts = ip.split('.').map(Number);
-  if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) {
-    return true; // Malformed — refuse rather than guess.
-  }
-  const [a, b, c] = parts as [number, number, number, number];
-  if (a === 0) return true; // "this network"
-  if (a === 10) return true; // RFC1918
-  if (a === 127) return true; // loopback
-  if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT
-  if (a === 169 && b === 254) return true; // link-local, incl. cloud metadata (169.254.169.254)
-  if (a === 172 && b >= 16 && b <= 31) return true; // RFC1918
-  if (a === 192 && b === 0 && c === 0) return true; // IETF protocol assignments
-  if (a === 192 && b === 168) return true; // RFC1918
-  if (a === 198 && (b === 18 || b === 19)) return true; // benchmarking
-  if (a >= 224) return true; // multicast + reserved
-  return false;
-}
-
-export function isPrivateIPv6(ip: string): boolean {
-  const lower = ip.toLowerCase();
-  if (lower === '::1' || lower === '::') return true;
-  if (lower.startsWith('::ffff:')) {
-    // IPv4-mapped IPv6 — unwrap and check the embedded v4 address.
-    const mapped = lower.slice(7);
-    if (/^\d+\.\d+\.\d+\.\d+$/.test(mapped)) return isPrivateIPv4(mapped);
-  }
-  return (
-    lower.startsWith('fe80:') || // link-local
-    lower.startsWith('fc') || // unique local
-    lower.startsWith('fd') || // unique local
-    lower.startsWith('ff') // multicast
-  );
-}
 
 function isPrivateIp(address: string, family: number): boolean {
   return family === 6 ? isPrivateIPv6(address) : isPrivateIPv4(address);

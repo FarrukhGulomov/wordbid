@@ -46,7 +46,35 @@ describe('isPrivateIPv6', () => {
     expect(isPrivateIPv6('::ffff:8.8.8.8')).toBe(false);
   });
 
+  // F03: dns.lookup can hand back an IPv4-mapped address as plain hex ("::ffff:7f00:1") rather
+  // than the dotted-quad form ("::ffff:127.0.0.1") — which libc/OS-dependent form you get back
+  // for the SAME address is not something callers control. The old implementation's unwrap only
+  // matched a literal dotted-quad tail, so the hex form fell through every check and came back
+  // "not private" — a real bypass, not just a theoretical one.
+  it('unwraps IPv4-mapped addresses written in full hex, not just dotted-quad', () => {
+    expect(isPrivateIPv6('::ffff:7f00:1')).toBe(true); // 127.0.0.1
+    expect(isPrivateIPv6('::ffff:a9fe:a9fe')).toBe(true); // 169.254.169.254
+    expect(isPrivateIPv6('::ffff:808:808')).toBe(false); // 8.8.8.8
+  });
+
+  it('unwraps a fully expanded (non-"::"-compressed) IPv4-mapped address', () => {
+    expect(isPrivateIPv6('0:0:0:0:0:ffff:127.0.0.1')).toBe(true);
+    expect(isPrivateIPv6('0:0:0:0:0:ffff:7f00:1')).toBe(true);
+  });
+
+  it('handles brackets and a zone id', () => {
+    expect(isPrivateIPv6('[fe80::1]')).toBe(true);
+    expect(isPrivateIPv6('fe80::1%eth0')).toBe(true);
+    expect(isPrivateIPv6('[fe80::1%eth0]')).toBe(true);
+  });
+
   it('allows ordinary public IPv6 addresses', () => {
     expect(isPrivateIPv6('2001:4860:4860::8888')).toBe(false);
+  });
+
+  it('treats malformed IPv6 text as private', () => {
+    expect(isPrivateIPv6('not-an-ipv6-address')).toBe(true);
+    expect(isPrivateIPv6('::::')).toBe(true);
+    expect(isPrivateIPv6('1:2:3:4:5:6:7:8:9')).toBe(true);
   });
 });
