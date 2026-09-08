@@ -3,6 +3,6 @@
   <circle cx="12.2" cy="11.1" r="1" fill="#f5c451"></circle>
   <circle cx="16" cy="8.75" r="1" fill="#f5c451"></circle>
   <circle cx="19.8" cy="11.1" r="1" fill="#f5c451"></circle>
-  <text x="16" y="23" text-anchor="middle" font-family="ui-monospace,'SF Mono',Menlo,monospace" font-size="12.5" font-weight="800" fill="#f5c451">W</text>
+  <g transform="translate(12.25,23) scale(0.012500,-0.012500)"><path d="M91 0 16 730H124L168 220Q170 203 171.5 178.5Q173 154 174.5 129.0Q176 104 176 85Q178 104 180.0 129.0Q182 154 184.5 178.5Q187 203 189 220L249 730H354L410 220Q413 203 415.5 178.5Q418 154 421.0 129.0Q424 104 426 85Q427 104 428.0 129.0Q429 154 430.5 178.5Q432 203 434 220L477 730H584L505 0H367L313 512Q311 531 308.5 556.5Q306 582 304.0 607.5Q302 633 301 651Q300 633 297.5 607.5Q295 582 293.0 556.5Q291 531 289 512L230 0Z" fill="#f5c451"/></g>
   <rect x="11" y="24.5" width="10" height="1.1" rx="0.55" fill="#f5c451"></rect>
 </svg>
