@@ -22,7 +22,10 @@ export function LeaderboardRow({ row }: { row: Row }) {
   const isTop = row.rank === 1;
 
   return (
-    <li className={`border-b px-1 py-4 ${isTop ? 'border-gold/30 bg-gold/5' : 'border-line'}`}>
+    <li
+      data-word={row.normalized}
+      className={`border-b px-1 py-4 ${isTop ? 'border-gold/30 bg-gold/5' : 'border-line'}`}
+    >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
         <div className="flex items-center gap-2 sm:w-36 sm:shrink-0">
           <span className={`tnum shrink-0 font-mono text-xs ${isTop ? 'text-gold' : 'text-muted'}`}>

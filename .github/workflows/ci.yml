@@ -1,0 +1,67 @@
+name: CI
+
+# F13: no CI workflow existed in this repo at all before this — every one of the checks below
+# (lint, typecheck, the full real-Postgres test suite, production build) was previously only ever
+# run by hand, with no guardrail stopping a broken change from landing on main.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    # Matches tests/global-setup.ts's expectations: a real Postgres database whose name contains
+    # "test" (the suite itself refuses to run against anything else), reachable at localhost:5432
+    # with the credentials written into .env.test below.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: oti
+          POSTGRES_PASSWORD: oti
+          POSTGRES_DB: oti_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Mirrors .env.test.example (see README's "Tests" section) — this is a disposable CI
+      # database, never a value used anywhere outside this job.
+      - name: Write .env.test
+        run: |
+          cat > .env.test <<'EOF'
+          DATABASE_URL="postgresql://oti:oti@localhost:5432/oti_test?schema=public"
+          PAYMENT_PROVIDER="mock"
+          CLICK_HASH_SALT="test-salt"
+          ADMIN_TOKEN="test-admin-token"
+          NEXT_PUBLIC_SITE_URL="http://localhost:3000"
+          STARTING_PRICE_CENTS="1000"
+          TAKEOVER_INCREMENT_PERCENT="5"
+          EOF
+
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+
+      # `prisma generate` only needs DATABASE_URL to be a resolvable value, not a live
+      # connection — next build itself never queries the database (every DB-backed route/page
+      # here is force-dynamic, so nothing is fetched at build time).
+      - name: Build
+        run: npm run build
+        env:
+          DATABASE_URL: "postgresql://oti:oti@localhost:5432/oti_test?schema=public"

@@ -19,6 +19,36 @@ async function ownedWord(word: string, brand: string, eventId: string) {
 
 const CHROME = 'Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/126 Safari/537.36';
 
+// F10: the dedupe check used to run as a plain read BEFORE recordClick's own transaction even
+// started — two requests from the SAME visitor arriving close together could both see "no recent
+// click yet" and both write valid:true, double-counting a click that should have deduped to one.
+// Firing many real, concurrent calls for the identical (ownership, visitor) pair exercises that
+// exact race: the FIX makes the outcome deterministic (always exactly one valid) regardless of
+// how the calls happen to interleave, where the old code's outcome depended on timing.
+describe('recordClick — F10: concurrent identical clicks never double-count', () => {
+  it('exactly one of many simultaneous clicks from the same visitor counts as valid', async () => {
+    const word = await ownedWord('coding', 'DevX', 'e1');
+    const ownershipId = word.currentOwnership!.id;
+
+    const CONCURRENCY = 20;
+    const results = await Promise.all(
+      Array.from({ length: CONCURRENCY }, () =>
+        recordClick({ ownershipId, wordId: word.id, ip: '9.9.9.9', userAgent: CHROME }),
+      ),
+    );
+
+    expect(results.filter(Boolean)).toHaveLength(1);
+
+    const ownershipAfter = await db.ownership.findUniqueOrThrow({ where: { id: ownershipId } });
+    const wordAfter = await db.word.findUniqueOrThrow({ where: { id: word.id } });
+    expect(ownershipAfter.clickCount).toBe(1);
+    expect(wordAfter.clickCount).toBe(1);
+
+    const validClicks = await db.click.count({ where: { ownershipId, valid: true } });
+    expect(validClicks).toBe(1);
+  });
+});
+
 describe('visitorHash', () => {
   it('is stable for the same visitor and different for others', () => {
     expect(visitorHash('1.2.3.4', CHROME)).toBe(visitorHash('1.2.3.4', CHROME));

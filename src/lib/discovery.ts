@@ -25,8 +25,9 @@ import { getLeaderboard, type LeaderboardRow } from './queries';
  */
 
 // A word must be found within this many rows of the value-ranked board to be considered for any
-// discovery view — a generous cap for MVP scale, not a claim that this scans "all" words. See
-// the README's BidRank/discovery section for the scaling note.
+// discovery view — a generous cap for MVP scale, not a claim that this scans "all" words. A word
+// ranked below this cutoff simply cannot appear on Trending/Rising/Hidden Gems/New, however much
+// real engagement it has — see F15. Revisit once the owned-word count approaches this number.
 const BOARD_SCAN_LIMIT = 500;
 
 const TRENDING_WINDOW_DAYS = 7;

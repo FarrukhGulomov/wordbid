@@ -106,6 +106,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <Link href="/terms" className="underline underline-offset-2 hover:text-text">
                 Terms
               </Link>
+              <Link href="/privacy" className="underline underline-offset-2 hover:text-text">
+                Privacy
+              </Link>
               <Link href="/claim" className="underline underline-offset-2 hover:text-text">
                 Claim a word
               </Link>

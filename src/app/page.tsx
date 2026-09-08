@@ -2,8 +2,8 @@ import Link from 'next/link';
 import { LeaderboardRow } from '@/components/LeaderboardRow';
 import { ActivityFeed } from '@/components/ActivityFeed';
 import { WordSearch } from '@/components/WordSearch';
-import { ImpressionBeacon } from '@/components/ImpressionBeacon';
-import { getLeaderboard, getRecentActivity, getMostFoughtOver } from '@/lib/queries';
+import { ImpressionTracker } from '@/components/ImpressionTracker';
+import { getLeaderboard, getRecentActivity, getMostFoughtOver, countOwnedWords } from '@/lib/queries';
 import { getTrendingWords, getRisingWords, getHiddenGems, getNewArrivals } from '@/lib/discovery';
 import { formatUsd } from '@/lib/money';
 import { config } from '@/lib/config';
@@ -68,17 +68,23 @@ function isTab(value: string | undefined): value is Tab {
   );
 }
 
+// F15: the Top view is the one real, unbounded ranking (every owned word competes on it) — the
+// others are curated top-20 lists over a scored subset, not something a visitor pages through.
+const TOP_PAGE_SIZE = 50;
+
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; page?: string }>;
 }) {
-  const { tab: rawTab } = await searchParams;
+  const { tab: rawTab, page: rawPage } = await searchParams;
   const tab: Tab = isTab(rawTab) ? rawTab : 'top';
+  const parsedPage = Number(rawPage);
+  const page = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
 
-  const [rows, activity, contested, activeFeed] = await Promise.all([
+  const [rows, activity, contested, activeFeed, totalOwnedWords] = await Promise.all([
     tab === 'top'
-      ? getLeaderboard(50)
+      ? getLeaderboard(TOP_PAGE_SIZE, (page - 1) * TOP_PAGE_SIZE)
       : tab === 'trending'
         ? getTrendingWords(20)
         : tab === 'rising'
@@ -91,14 +97,15 @@ export default async function HomePage({
     getRecentActivity(6),
     getMostFoughtOver(6),
     tab === 'active' ? getRecentActivity(30) : Promise.resolve([]),
+    tab === 'top' ? countOwnedWords() : Promise.resolve(0),
   ]);
+
+  const totalPages = Math.max(1, Math.ceil(totalOwnedWords / TOP_PAGE_SIZE));
 
   const copy = TAB_COPY[tab];
 
   return (
     <>
-      {tab !== 'active' && <ImpressionBeacon words={rows.map((row) => row.normalized)} />}
-
       <section className="py-4 text-center sm:py-6">
         <h1 className="font-mono text-2xl font-black tracking-tighter sm:text-4xl">
           SEE WHO&apos;S GETTING ATTENTION ON THE INTERNET
@@ -181,11 +188,44 @@ export default async function HomePage({
             )}
           </div>
         ) : (
-          <ul className="border-t border-line">
-            {rows.map((row) => (
-              <LeaderboardRow key={row.wordId} row={row} />
-            ))}
-          </ul>
+          <ImpressionTracker>
+            <ul className="border-t border-line">
+              {rows.map((row) => (
+                <LeaderboardRow key={row.wordId} row={row} />
+              ))}
+            </ul>
+          </ImpressionTracker>
+        )}
+
+        {/* F15: the Top view previously stopped at 50 rows with no indication more existed and
+            no way to see them. Only shown for 'top' — it's the one view with a real, unbounded
+            ranking every owned word competes on. */}
+        {tab === 'top' && rows.length > 0 && totalPages > 1 && (
+          <div className="mt-3 flex items-center justify-between gap-2 text-xs">
+            {page > 1 ? (
+              <Link
+                href={`/?tab=top&page=${page - 1}`}
+                className="rounded border border-line px-2.5 py-1.5 font-mono hover:border-muted"
+              >
+                ← PREV
+              </Link>
+            ) : (
+              <span />
+            )}
+            <span className="tnum text-muted">
+              Page {page} of {totalPages} · {totalOwnedWords} owned words
+            </span>
+            {page < totalPages ? (
+              <Link
+                href={`/?tab=top&page=${page + 1}`}
+                className="rounded border border-line px-2.5 py-1.5 font-mono hover:border-muted"
+              >
+                NEXT →
+              </Link>
+            ) : (
+              <span />
+            )}
+          </div>
         )}
       </section>
 

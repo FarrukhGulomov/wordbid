@@ -10,10 +10,10 @@ export const dynamic = 'force-dynamic';
 const bodySchema = z.object({ words: z.array(z.string().min(1).max(60)).max(200) });
 
 /**
- * Records an impression for each currently-owned word in the request — one listing shown to
- * one real visitor, once per page load. Called only from ImpressionBeacon, client-side, so a
- * crawler that never runs JavaScript never inflates this at all; the User-Agent check below
- * catches the ones that do.
+ * Records an impression for each currently-owned word in the request — one listing actually
+ * scrolled into view by one real visitor. Called only from ImpressionTracker, client-side, once
+ * a row's viewport intersection confirms it was really shown (see F10) — so a crawler that never
+ * runs JavaScript never inflates this at all; the User-Agent check below catches the ones that do.
  *
  * Unlike clicks, impressions are intentionally NOT deduplicated per visitor — a reload is a
  * genuinely new impression, same as any ad-impression count. "Unique clicks" is what CTR uses

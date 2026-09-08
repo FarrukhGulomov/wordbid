@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { BrandLogo } from '@/components/BrandLogo';
 import { OwnerDescription } from '@/components/OwnerDescription';
-import { ImpressionBeacon } from '@/components/ImpressionBeacon';
+import { ImpressionTracker } from '@/components/ImpressionTracker';
 import { notFound } from 'next/navigation';
 import { getWordByNormalized, getWordCompetitiveSpend, getBoostCandidates, getLeaderboard } from '@/lib/queries';
 import { getOwnershipPerformance } from '@/lib/ownership-stats';
@@ -113,24 +113,31 @@ export default async function WordPage({ params }: Props) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
-      <ImpressionBeacon words={[word.normalized]} />
 
-      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-xs tracking-widest text-muted">
-        <span>{word.rank ? `GLOBAL RANK #${word.rank}` : 'UNRANKED'}</span>
-        {/* Only ever shown when there's a real prior observation to compare against — see
-            getRankDeltaSince. No "steady" badge for a zero change; nothing fabricated. */}
-        {word.rankDelta !== null && word.rankDelta !== 0 && (
-          <span className={word.rankDelta > 0 ? 'text-gold' : 'text-muted'}>
-            {word.rankDelta > 0 ? `▲ UP ${word.rankDelta}` : `▼ DOWN ${Math.abs(word.rankDelta)}`}
-          </span>
-        )}
-        {word.costToReachNumberOneCents !== null && (
-          <span>· {formatUsd(word.costToReachNumberOneCents)} to take #1</span>
-        )}
-      </p>
-      <h1 className="mt-1 font-mono text-4xl font-black uppercase tracking-tighter sm:text-5xl">
-        {display}
-      </h1>
+      {/* F10: data-word is the ImpressionTracker's real viewport-visibility target — the old
+          ImpressionBeacon fired the instant this page mounted, whether or not this heading (or
+          anything else on the page) had actually scrolled into view. */}
+      <ImpressionTracker>
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-xs tracking-widest text-muted">
+          <span>{word.rank ? `GLOBAL RANK #${word.rank}` : 'UNRANKED'}</span>
+          {/* Only ever shown when there's a real prior observation to compare against — see
+              getRankDeltaSince. No "steady" badge for a zero change; nothing fabricated. */}
+          {word.rankDelta !== null && word.rankDelta !== 0 && (
+            <span className={word.rankDelta > 0 ? 'text-gold' : 'text-muted'}>
+              {word.rankDelta > 0 ? `▲ UP ${word.rankDelta}` : `▼ DOWN ${Math.abs(word.rankDelta)}`}
+            </span>
+          )}
+          {word.costToReachNumberOneCents !== null && (
+            <span>· {formatUsd(word.costToReachNumberOneCents)} to take #1</span>
+          )}
+        </p>
+        <h1
+          data-word={word.normalized}
+          className="mt-1 font-mono text-4xl font-black uppercase tracking-tighter sm:text-5xl"
+        >
+          {display}
+        </h1>
+      </ImpressionTracker>
 
       <div className="mt-6 rounded border border-line bg-surface p-4 sm:p-5">
         <div className="flex items-center gap-3">
