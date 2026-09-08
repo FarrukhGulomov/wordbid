@@ -48,6 +48,10 @@ export function ActivityFeed({ entries }: { entries: Entry[] }) {
               <span className="min-w-0 flex-1 truncate">
                 <span className="font-medium">{entry.owner.name}</span>{' '}
                 <span className="text-muted">{verb}</span>{' '}
+                {/* Deliberately left as a plain inline link at its text size. It sits inside a
+                    sentence ("Brand claimed WORD from …"), which is exactly the case WCAG 2.5.8
+                    exempts from the 24px minimum — padding it out would break the line's rhythm
+                    to satisfy a rule that does not apply to text-flow links. */}
                 <Link
                   href={`/word/${entry.word.normalized}`}
                   className="font-mono font-bold uppercase hover:text-gold"

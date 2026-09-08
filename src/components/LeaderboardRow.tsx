@@ -31,13 +31,15 @@ export function LeaderboardRow({ row }: { row: Row }) {
           <span className={`tnum shrink-0 font-mono text-xs ${isTop ? 'text-gold' : 'text-muted'}`}>
             {isTop ? '👑 #1' : `#${row.rank}`}
           </span>
+          {/* min-h-6 / min-w-0: WCAG 2.5.8 wants at least 24px of tappable height, and at
+              text-xs this link was only 16px tall — the smallest target on the busiest screen. */}
           <Link
             href={`/word/${row.normalized}`}
-            className={`truncate font-mono text-xs font-bold uppercase tracking-widest hover:text-gold ${
+            className={`flex min-h-6 min-w-0 items-center font-mono text-xs font-bold uppercase tracking-widest hover:text-gold ${
               isTop ? 'text-gold' : 'text-muted'
             }`}
           >
-            {row.display}
+            <span className="truncate">{row.display}</span>
           </Link>
         </div>
 
@@ -46,7 +48,7 @@ export function LeaderboardRow({ row }: { row: Row }) {
           rel="nofollow sponsored noopener"
           className="flex min-w-0 flex-1 items-center gap-3 rounded border border-line bg-surface px-3 py-2.5 transition hover:border-gold/50 hover:bg-surface-2"
         >
-          <BrandLogo src={row.ownerLogoUrl} size={40} className="rounded" />
+          <BrandLogo src={row.ownerLogoUrl} name={row.ownerName} size={40} className="rounded" />
           <div className="min-w-0 flex-1">
             <div className="truncate text-base font-bold text-text sm:text-lg">{row.ownerName}</div>
             <div className="tnum mt-0.5 flex items-center gap-1.5 text-xs text-muted">
@@ -66,9 +68,12 @@ export function LeaderboardRow({ row }: { row: Row }) {
           </span>
         </a>
 
+        {/* Fixed width from `sm` up: sized by its price, this button was wider on $1,200 rows
+            than on $9 ones, which pushed the brand cards to different widths and left the
+            column's right edge sawtoothed all the way down the page. */}
         <Link
           href={`/claim?word=${encodeURIComponent(row.normalized)}`}
-          className="w-full shrink-0 rounded border border-gold px-3 py-2 text-center font-mono text-[11px] font-bold text-gold transition hover:bg-gold hover:text-ink sm:w-auto sm:py-1.5"
+          className="w-full shrink-0 rounded border border-gold px-3 py-2 text-center font-mono text-[11px] font-bold text-gold transition hover:bg-gold hover:text-ink sm:w-40 sm:py-1.5"
         >
           TAKE FOR {formatUsd(row.minimumBidCents)}
         </Link>
@@ -80,7 +85,7 @@ export function LeaderboardRow({ row }: { row: Row }) {
             stats) is the "details" this links to — no separate modal or duplicate content. */}
         <Link
           href={`/word/${row.normalized}`}
-          className="shrink-0 text-xs text-muted underline underline-offset-2 hover:text-text"
+          className="inline-flex min-h-6 shrink-0 items-center text-xs text-muted underline underline-offset-2 hover:text-text"
         >
           See details →
         </Link>

@@ -89,6 +89,22 @@ export function ClaimForm({ initialWord, isCrypto = false }: { initialWord: stri
   const minimum = availability?.minimumBidCents ?? null;
   const amountTooLow = minimum !== null && amountCents !== null && amountCents < minimum;
 
+  /**
+   * Why the pay button is off, in the buyer's words — or null when it is live.
+   *
+   * The button used to grey itself out silently, so an empty /claim (the state anyone arriving
+   * from "CLAIM A WORD" lands in) showed a dead gold button with no stated reason. Stating the
+   * missing field is the whole fix; the reason is also wired up as the button's
+   * aria-describedby so it is announced rather than only seen.
+   */
+  const disabledReason = !normalized
+    ? 'Enter the word you want first.'
+    : amountCents === null || amountCents <= 0
+      ? 'Enter how much you want to pay.'
+      : amountTooLow && minimum !== null
+        ? `Raise your price to at least ${formatUsd(minimum)}.`
+        : null;
+
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
@@ -210,12 +226,16 @@ export function ClaimForm({ initialWord, isCrypto = false }: { initialWord: stri
           id="description"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="Left blank, we try to pull one from your site automatically"
+          placeholder="One line about your brand"
           maxLength={160}
           className="w-full rounded border border-line bg-surface px-3 py-2.5 text-sm placeholder:text-muted focus:border-gold focus:outline-none"
         />
+        {/* The "we'll try to fetch one" promise moved out of the placeholder and into this
+            helper line: at 390px the placeholder clipped mid-sentence, and a truncated
+            explanation is worse than none. The placeholder now just shows the shape. */}
         <p className="mt-1.5 text-xs text-muted">
-          Some sites block automatic detection — type your own if it doesn&apos;t show up after paying.
+          Leave it blank and we try to pull one from your site. Some sites block that — type your
+          own if it doesn&apos;t show up after paying.
         </p>
       </div>
 
@@ -298,15 +318,27 @@ export function ClaimForm({ initialWord, isCrypto = false }: { initialWord: stri
 
       {isCrypto && <CryptoPaymentNotice />}
 
-      <button
-        type="submit"
-        disabled={submitting || amountTooLow || !normalized}
-        className="w-full rounded bg-gold px-4 py-3 font-mono text-sm font-bold text-ink transition hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        {submitting
-          ? 'STARTING CHECKOUT…'
-          : `PAY ${amountCents !== null ? formatUsd(amountCents) : ''} & OWN ${normalized.toUpperCase() || 'IT'}`}
-      </button>
+      <div>
+        <button
+          type="submit"
+          disabled={submitting || disabledReason !== null}
+          aria-describedby={disabledReason ? 'pay-hint' : undefined}
+          className="w-full rounded bg-gold px-4 py-3 font-mono text-sm font-bold text-ink transition hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {/* Only ever name a price once there is one. Interpolating a null amount produced the
+              literal "PAY  & OWN IT" — two spaces and no number — on every empty form. */}
+          {submitting
+            ? 'STARTING CHECKOUT…'
+            : amountCents !== null && amountCents > 0 && normalized
+              ? `PAY ${formatUsd(amountCents)} & OWN ${normalized.toUpperCase()}`
+              : 'PAY & OWN THIS WORD'}
+        </button>
+        {disabledReason && !submitting && (
+          <p id="pay-hint" className="mt-2 text-center text-xs text-muted">
+            {disabledReason}
+          </p>
+        )}
+      </div>
     </form>
   );
 }

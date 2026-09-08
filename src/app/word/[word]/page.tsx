@@ -11,6 +11,7 @@ import { formatUsd, formatCount } from '@/lib/money';
 import { minimumBidCents, boostTargetFor } from '@/lib/pricing';
 import { config, SITE_NAME } from '@/lib/config';
 import { shortAgo } from '@/lib/time';
+import { displayLogoUrl } from '@/lib/url';
 import { BoostActions } from '@/components/BoostActions';
 
 export const dynamic = 'force-dynamic';
@@ -62,7 +63,11 @@ export default async function WordPage({ params }: Props) {
     return (
       <div className="py-16 text-center">
         <p className="font-mono text-xs tracking-widest text-muted">UNCLAIMED</p>
-        <h1 className="mt-2 font-mono text-4xl font-black uppercase tracking-tighter sm:text-5xl">
+        {/* A word can be up to 30 characters and is one unbreakable token, so at text-4xl it
+            outgrew a 390px screen and pushed the whole document 43px wider than the viewport —
+            every page below it then scrolled sideways. wrap-anywhere breaks the token only when
+            it genuinely does not fit, so short words are untouched. */}
+        <h1 className="mt-2 font-mono text-4xl font-black uppercase tracking-tighter wrap-anywhere sm:text-5xl">
           {display}
         </h1>
         <p className="mt-4 text-muted">
@@ -77,7 +82,7 @@ export default async function WordPage({ params }: Props) {
         </Link>
         <p className="mt-2 text-xs text-muted">One word. One owner.</p>
         <p className="mt-8 text-sm">
-          <Link href="/" className="text-muted underline underline-offset-2 hover:text-text">
+          <Link href="/" className="inline-flex min-h-8 items-center text-muted underline underline-offset-2 hover:text-text">
             ← See who owns the internet
           </Link>
         </p>
@@ -133,7 +138,7 @@ export default async function WordPage({ params }: Props) {
         </p>
         <h1
           data-word={word.normalized}
-          className="mt-1 font-mono text-4xl font-black uppercase tracking-tighter sm:text-5xl"
+          className="mt-1 font-mono text-4xl font-black uppercase tracking-tighter wrap-anywhere sm:text-5xl"
         >
           {display}
         </h1>
@@ -141,7 +146,7 @@ export default async function WordPage({ params }: Props) {
 
       <div className="mt-6 rounded border border-line bg-surface p-4 sm:p-5">
         <div className="flex items-center gap-3">
-          <BrandLogo src={owner.logoUrl} size={32} className="rounded" />
+          <BrandLogo src={displayLogoUrl(owner.logoUrl)} name={owner.name} size={32} className="rounded" />
           <div className="min-w-0">
             <p className="font-mono text-xs text-muted">👑 OWNED BY</p>
             <p className="truncate text-lg font-bold">{owner.name}</p>
@@ -188,7 +193,7 @@ export default async function WordPage({ params }: Props) {
           <p className="mt-3 text-xs">
             <Link
               href={`/word/${word.normalized}/analytics`}
-              className="text-muted underline underline-offset-2 hover:text-text"
+              className="inline-flex min-h-6 items-center align-middle text-muted underline underline-offset-2 hover:text-text"
             >
               VIEW PERFORMANCE →
             </Link>
@@ -278,7 +283,7 @@ export default async function WordPage({ params }: Props) {
                 {period.endedAt !== null && (
                   <Link
                     href={`/claim?word=${encodeURIComponent(word.normalized)}`}
-                    className="shrink-0 font-mono font-bold text-gold underline underline-offset-2 hover:text-text"
+                    className="inline-flex min-h-6 shrink-0 items-center font-mono font-bold text-gold underline underline-offset-2 hover:text-text"
                   >
                     RECLAIM FOR {formatUsd(takePrice)}
                   </Link>
@@ -296,12 +301,14 @@ export default async function WordPage({ params }: Props) {
           </h2>
           <ul className="space-y-1 text-sm">
             {nearby.map((row) => (
-              <li key={row.wordId} className="flex items-baseline justify-between gap-2">
+              <li key={row.wordId} className="flex min-h-8 items-center justify-between gap-2">
                 <Link
                   href={`/word/${row.normalized}`}
-                  className="truncate font-mono font-bold uppercase hover:text-gold"
+                  className="inline-flex min-h-6 min-w-0 items-center font-mono font-bold uppercase hover:text-gold"
                 >
-                  #{row.rank} {row.display}
+                  <span className="truncate">
+                    #{row.rank} {row.display}
+                  </span>
                 </Link>
                 <span className="tnum shrink-0 text-xs text-muted">{formatUsd(row.valueCents)}</span>
               </li>
@@ -311,7 +318,7 @@ export default async function WordPage({ params }: Props) {
       )}
 
       <p className="mt-10 text-sm">
-        <Link href="/" className="text-muted underline underline-offset-2 hover:text-text">
+        <Link href="/" className="inline-flex min-h-8 items-center text-muted underline underline-offset-2 hover:text-text">
           ← See who owns the internet
         </Link>
       </p>

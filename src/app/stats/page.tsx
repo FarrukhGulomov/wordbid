@@ -87,15 +87,17 @@ export default async function StatsPage() {
           ) : (
             <ul className="space-y-1 text-sm">
               {mostClicked.map((word) => (
-                <li key={word.id} className="flex items-baseline justify-between gap-2">
-                  <span className="min-w-0 truncate">
+                <li key={word.id} className="flex min-h-8 items-center justify-between gap-2">
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    {/* inline-flex, not a bare inline link: an inline box is only as tall as its
+                        font, so at text-sm these were 20px targets in a tightly stacked list. */}
                     <Link
                       href={`/word/${word.normalized}`}
-                      className="font-mono font-bold uppercase hover:text-gold"
+                      className="inline-flex min-h-6 min-w-0 items-center font-mono font-bold uppercase hover:text-gold"
                     >
-                      {word.display}
-                    </Link>{' '}
-                    <span className="text-xs text-muted">
+                      <span className="truncate">{word.display}</span>
+                    </Link>
+                    <span className="truncate text-xs text-muted">
                       {word.currentOwnership?.owner.name}
                     </span>
                   </span>
@@ -117,12 +119,12 @@ export default async function StatsPage() {
           ) : (
             <ul className="space-y-1 text-sm">
               {mostValuable.map((row) => (
-                <li key={row.wordId} className="flex items-baseline justify-between gap-2">
+                <li key={row.wordId} className="flex min-h-8 items-center justify-between gap-2">
                   <Link
                     href={`/word/${row.normalized}`}
-                    className="truncate font-mono font-bold uppercase hover:text-gold"
+                    className="inline-flex min-h-6 min-w-0 items-center font-mono font-bold uppercase hover:text-gold"
                   >
-                    {row.display}
+                    <span className="truncate">{row.display}</span>
                   </Link>
                   <span className="tnum shrink-0 font-mono text-xs text-gold">
                     {formatUsd(row.valueCents)}
@@ -135,7 +137,7 @@ export default async function StatsPage() {
       </section>
 
       <p className="mt-10 text-sm">
-        <Link href="/" className="text-muted underline underline-offset-2 hover:text-text">
+        <Link href="/" className="inline-flex min-h-8 items-center text-muted underline underline-offset-2 hover:text-text">
           ← See who owns the internet
         </Link>
       </p>

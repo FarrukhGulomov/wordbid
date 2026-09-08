@@ -258,10 +258,12 @@ export default async function CheckoutResultPage({
     <div className="py-16 text-center">
       <h1 className="font-mono text-2xl font-black tracking-tight">CONFIRMING YOUR PAYMENT…</h1>
       <p className="mx-auto mt-4 max-w-md text-muted">
-        We are waiting for your payment provider to confirm. Your rank updates the moment it does.
-        This page refreshes on its own.
+        {payment.owner.name}&rsquo;s {formatUsd(payment.amountCents)} for {wordDisplay} is with your
+        payment provider. Your rank updates the moment it confirms. This page refreshes on its own.
       </p>
-      <PendingRefresh />
+      {/* supportEmail is undefined until an operator sets SUPPORT_EMAIL — the slow-payment escape
+          hatch then names a real address, and otherwise says nothing rather than inventing one. */}
+      <PendingRefresh supportEmail={config.supportEmail ?? null} />
     </div>
   );
 }
