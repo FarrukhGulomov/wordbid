@@ -6,6 +6,11 @@ export const metadata: Metadata = {
   description: `What ${SITE_NAME} collects, why, and how to reach us.`,
 };
 
+// Otherwise this would be statically prerendered at build time — and the shared layout's
+// header queries the database (live online/visitor proof), which is unreachable from the
+// isolated container most hosts (Railway, Vercel, ...) build in. Same reason /terms has this.
+export const dynamic = 'force-dynamic';
+
 /**
  * Describes only what this codebase actually does — every claim below is backed by a specific
  * data-handling decision made elsewhere (cited in comments here), never boilerplate. See F14:
