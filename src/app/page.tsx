@@ -124,7 +124,7 @@ export default async function HomePage({
         </div>
 
         <p className="mt-2 text-xs">
-          <Link href="/claim" className="text-muted underline underline-offset-2 hover:text-text">
+          <Link href="/claim" className="inline-flex min-h-8 items-center text-muted underline underline-offset-2 hover:text-text">
             Have a startup? Compete for attention →
           </Link>
         </p>
@@ -134,25 +134,38 @@ export default async function HomePage({
         {/* -mx-4 px-4 bleeds the scroll area to the true screen edge on mobile (canceling
             <main>'s own px-4) so the last tab gets real trailing space instead of stopping flush
             against the container's inner edge, where it reads as clipped rather than scrollable.
-            Reverts to normal, non-bled padding at sm+ where the tabs already fit without scrolling. */}
-        <nav
-          className="-mx-4 mb-3 flex gap-1 overflow-x-auto px-4 border-b border-line sm:mx-0 sm:px-0"
-          aria-label="Discovery views"
-        >
-          {TABS.map((t) => (
-            <Link
-              key={t.key}
-              href={t.key === 'top' ? '/' : `/?tab=${t.key}`}
-              className={`shrink-0 whitespace-nowrap border-b-2 px-3 py-2.5 font-mono text-xs font-bold tracking-widest transition ${
-                tab === t.key
-                  ? 'border-gold text-gold'
-                  : 'border-transparent text-muted hover:text-text'
-              }`}
-            >
-              {t.label}
-            </Link>
-          ))}
-        </nav>
+            Reverts to normal, non-bled padding at sm+ where the tabs already fit without scrolling.
+
+            The fade is the scroll affordance: at 390px only "Top" and "Rising" fit, and with the
+            row ending in a hard edge there was nothing to say the other three tabs — Hidden Gems,
+            New, Active — existed at all. Softening the right edge is what makes them discoverable.
+            It stops a pixel short of the bottom so the nav's own border still reads as continuous,
+            and it is pointer-events-none so it never eats a tap on the tab underneath. */}
+        <div className="relative -mx-4 mb-3 sm:mx-0">
+          <nav
+            className="flex gap-1 overflow-x-auto px-4 border-b border-line sm:px-0"
+            aria-label="Discovery views"
+          >
+            {TABS.map((t) => (
+              <Link
+                key={t.key}
+                href={t.key === 'top' ? '/' : `/?tab=${t.key}`}
+                className={`shrink-0 whitespace-nowrap border-b-2 px-3 py-2.5 font-mono text-xs font-bold tracking-widest transition ${
+                  tab === t.key
+                    ? 'border-gold text-gold'
+                    : 'border-transparent text-muted hover:text-text'
+                }`}
+              >
+                {t.label}
+              </Link>
+            ))}
+          </nav>
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute top-0 right-0 bottom-px w-10 sm:hidden"
+            style={{ background: 'linear-gradient(to left, var(--color-ink), transparent)' }}
+          />
+        </div>
 
         <p className="mb-3 text-xs text-muted">{copy.description}</p>
 
@@ -240,12 +253,14 @@ export default async function HomePage({
           </h2>
           <ul className="space-y-1 text-sm">
             {contested.map(({ word, takeovers }) => (
-              <li key={word.id} className="flex items-baseline justify-between gap-2">
+              <li key={word.id} className="flex min-h-8 items-center justify-between gap-2">
+                {/* inline-flex, not a bare inline link: an inline box is only as tall as its
+                    font, so at text-sm these were 20px targets in a tightly stacked list. */}
                 <Link
                   href={`/word/${word.normalized}`}
-                  className="truncate font-mono font-bold uppercase hover:text-gold"
+                  className="inline-flex min-h-6 min-w-0 items-center font-mono font-bold uppercase hover:text-gold"
                 >
-                  {word.display}
+                  <span className="truncate">{word.display}</span>
                 </Link>
                 <span className="tnum shrink-0 text-xs text-muted">
                   {takeovers} takeover{takeovers === 1 ? '' : 's'}

@@ -64,7 +64,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <p className="tnum hidden font-mono text-xs text-muted sm:block">
                   <span className="text-live">🟢</span> {formatCount(online)} online ·{' '}
                   {formatCount(visitors)} visitors ·{' '}
-                  <Link href="/stats" className="text-muted underline underline-offset-2 hover:text-text">
+                  <Link
+                href="/stats"
+                className="inline-flex min-h-6 items-center align-middle text-muted underline underline-offset-2 hover:text-text"
+              >
                     STATS →
                   </Link>
                 </p>
@@ -79,7 +82,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <p className="tnum mt-1.5 font-mono text-xs text-muted sm:hidden">
               <span className="text-live">🟢</span> {formatCount(online)} online ·{' '}
               {formatCount(visitors)} visitors ·{' '}
-              <Link href="/stats" className="text-muted underline underline-offset-2 hover:text-text">
+              <Link
+                href="/stats"
+                className="inline-flex min-h-6 items-center align-middle text-muted underline underline-offset-2 hover:text-text"
+              >
                 STATS →
               </Link>
             </p>
@@ -99,17 +105,20 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               Owning a word here is temporary placement on this platform only. It is not legal
               ownership of a word, a trademark, a domain or any intellectual property.
             </p>
-            <p className="flex gap-4 pt-2">
-              <Link href="/stats" className="underline underline-offset-2 hover:text-text">
+            {/* Four 16px-tall links sat 16px apart here — under the 24px WCAG 2.5.8 asks for,
+                and the easiest place on the site to hit "Privacy" while reaching for "Terms".
+                min-h-8 plus a wider gap gives each one a real target without changing the type. */}
+            <p className="flex flex-wrap gap-x-6 gap-y-1 pt-2">
+              <Link href="/stats" className="inline-flex min-h-8 items-center underline underline-offset-2 hover:text-text">
                 Stats
               </Link>
-              <Link href="/terms" className="underline underline-offset-2 hover:text-text">
+              <Link href="/terms" className="inline-flex min-h-8 items-center underline underline-offset-2 hover:text-text">
                 Terms
               </Link>
-              <Link href="/privacy" className="underline underline-offset-2 hover:text-text">
+              <Link href="/privacy" className="inline-flex min-h-8 items-center underline underline-offset-2 hover:text-text">
                 Privacy
               </Link>
-              <Link href="/claim" className="underline underline-offset-2 hover:text-text">
+              <Link href="/claim" className="inline-flex min-h-8 items-center underline underline-offset-2 hover:text-text">
                 Claim a word
               </Link>
             </p>

@@ -114,7 +114,7 @@ export default async function OwnershipAnalyticsPage({ params }: Props) {
       <p className="mt-10 text-sm">
         <Link
           href={`/word/${word.normalized}`}
-          className="text-muted underline underline-offset-2 hover:text-text"
+          className="inline-flex min-h-6 items-center align-middle text-muted underline underline-offset-2 hover:text-text"
         >
           ← Back to {display}
         </Link>
@@ -125,7 +125,7 @@ export default async function OwnershipAnalyticsPage({ params }: Props) {
                 the purchase decision" in the README for why that mixing was removed from here. */}
             <Link
               href={`/word/${word.normalized}#boost`}
-              className="text-muted underline underline-offset-2 hover:text-text"
+              className="inline-flex min-h-6 items-center align-middle text-muted underline underline-offset-2 hover:text-text"
             >
               Want to rank higher? →
             </Link>
