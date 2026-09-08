@@ -1,6 +1,6 @@
 import { Prisma, PaymentStatus, PaymentKind, ActivityType } from '@prisma/client';
 import { prisma } from './db';
-import { bidWins, minimumBidCents } from './pricing';
+import { minimumBidCents } from './pricing';
 import type { TakeoverNotice } from './notifications/types';
 import type { PrismaClient } from '@prisma/client';
 
@@ -55,11 +55,26 @@ export async function confirmPayment(
       // Guard 1: recording the event and applying it succeed or fail together.
       await tx.webhookEvent.create({ data: { provider, eventId } });
 
-      const payment = await tx.payment.findUnique({
+      let payment = await tx.payment.findUnique({
         where: { providerReference },
         include: { owner: true },
       });
       if (!payment) return { outcome: 'unknown_payment' } as const;
+
+      // Serialise every confirmation touching this word. Only `payment.wordId` — immutable
+      // once the row exists — is used before this point; every other field is re-read below,
+      // once we actually hold this lock.
+      await tx.$executeRaw`SELECT id FROM "Word" WHERE id = ${payment.wordId} FOR UPDATE`;
+
+      // Re-read the payment now that we hold the lock every confirmation for this word must
+      // acquire first. A DIFFERENT success event for this SAME payment (e.g. a provider's own
+      // retried/duplicate delivery under a new event id — Stripe and NOWPayments can both do
+      // this) may have already decided its fate while this call was waiting for the lock. The
+      // snapshot taken before we ever contended for the lock is not safe to act on for that
+      // decision; only a read taken under this same protection is. Without this, a second event
+      // for an already-CONFIRMED payment would re-run the win/lose check against the NEW live
+      // value, and a boost that had already been applied could be applied a second time.
+      payment = await tx.payment.findUniqueOrThrow({ where: { id: payment.id }, include: { owner: true } });
 
       if (payment.status === PaymentStatus.CONFIRMED) {
         return { outcome: 'already_confirmed', paymentId: payment.id } as const;
@@ -70,9 +85,6 @@ export async function confirmPayment(
       ) {
         return { outcome: 'already_confirmed', paymentId: payment.id } as const;
       }
-
-      // Serialise every confirmation touching this word.
-      await tx.$executeRaw`SELECT id FROM "Word" WHERE id = ${payment.wordId} FOR UPDATE`;
 
       const word = await tx.word.findUniqueOrThrow({ where: { id: payment.wordId } });
       const now = new Date();
@@ -154,8 +166,13 @@ export async function confirmPayment(
       if (payment.owner.blocked) {
         return loses('This account was suspended before the payment completed.');
       }
-      // Re-checked against the LIVE value, not the value shown at checkout.
-      if (!bidWins(payment.amountCents, word.valueCents)) {
+      // Re-checked against the LIVE value, not the value shown at checkout — and against the
+      // SAME minimum-bid formula checkout itself enforces (minimumBidCents), not just "greater
+      // than". A bid that only clears the raw live value but not the configured takeover
+      // premium was already rejected once at checkout time for exactly this word; confirmation
+      // must hold it to the identical rule, or a stale captured bid can win at a discount the
+      // live board never actually offered.
+      if (payment.amountCents < minimumBidCents(word.valueCents)) {
         return loses('Another brand took this word at a higher price before your payment completed.');
       }
 
