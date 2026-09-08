@@ -34,8 +34,16 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-a {
-  color: inherit;
+/*
+ * MUST stay inside @layer base. Written unlayered, this rule beats every Tailwind text-color
+ * utility (they live in @layer utilities, and unlayered styles outrank layered ones no matter
+ * the specificity) — which silently stripped the colour off 53 of the 55 links on the homepage,
+ * including the gold CTAs, whose `text-ink` became near-white on gold at 1.48:1 contrast.
+ */
+@layer base {
+  a {
+    color: inherit;
+  }
 }
 
 ::selection {
