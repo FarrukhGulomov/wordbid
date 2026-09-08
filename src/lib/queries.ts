@@ -21,6 +21,8 @@ export type LeaderboardRow = {
   ownerName: string;
   ownerUrl: string;
   ownerLogoUrl: string | null;
+  /** Short, real description of the owner's own site — never a placeholder when there isn't one. */
+  ownerDescription: string | null;
   minimumBidCents: number;
   /** The authoritative BidRank score behind this row's position. Not rendered — see bidrank.ts. */
   bidRankScore: number;
@@ -76,6 +78,7 @@ export async function getLeaderboard(limit = 50, skip = 0): Promise<LeaderboardR
         ownerName: owner.name,
         ownerUrl: owner.url,
         ownerLogoUrl: owner.logoUrl,
+        ownerDescription: owner.description,
         minimumBidCents: minimumBidCents(word.valueCents),
         bidRankScore: computeBidRank({ bidStrengthCents: word.valueCents }),
         ownedSince: word.ownedSince!,

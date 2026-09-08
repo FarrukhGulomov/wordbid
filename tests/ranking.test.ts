@@ -29,6 +29,21 @@ describe('global leaderboard', () => {
     expect(board[0]!.valueCents).toBe(482000);
   });
 
+  it('carries the owner\'s real description through for the leaderboard row, when there is one', async () => {
+    await claim('ai', 'AcmeAI', 100000, 'e1');
+    const owner = await db.owner.findFirstOrThrow({ where: { name: 'AcmeAI' } });
+    await db.owner.update({ where: { id: owner.id }, data: { description: 'Real-time AI infra for startups.' } });
+
+    const board = await getLeaderboard();
+    expect(board[0]!.ownerDescription).toBe('Real-time AI infra for startups.');
+  });
+
+  it('leaves ownerDescription null rather than a placeholder when the owner has none', async () => {
+    await claim('ai', 'AcmeAI', 100000, 'e1');
+    const board = await getLeaderboard();
+    expect(board[0]!.ownerDescription).toBeNull();
+  });
+
   it('breaks ties by earlier confirmed ownership', async () => {
     const first = await claim('alpha', 'First', 5000, 'e1');
     await new Promise((r) => setTimeout(r, 10));

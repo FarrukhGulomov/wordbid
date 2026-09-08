@@ -53,6 +53,13 @@ export function LeaderboardRow({ row }: { row: Row }) {
               <span className="font-mono font-bold text-gold">{formatUsd(row.valueCents)}</span>
               <span>· {formatCount(row.clickCount)} clicks delivered</span>
             </div>
+            {/* A short, real description of the owner's own site — never a placeholder when
+                there isn't one (see getLeaderboard's ownerDescription, sourced straight from
+                Owner.description). Clamped to one line: this list row must stay compact, unlike
+                the word page's own OwnerDescription, which affords three. */}
+            {row.ownerDescription && (
+              <p className="mt-0.5 line-clamp-1 text-xs text-muted">{row.ownerDescription}</p>
+            )}
           </div>
           <span className="hidden shrink-0 font-mono text-[10px] font-bold text-muted sm:block">
             VISIT →
@@ -67,7 +74,17 @@ export function LeaderboardRow({ row }: { row: Row }) {
         </Link>
       </div>
 
-      {row.highlight && <p className="mt-1.5 pl-1 text-xs text-gold sm:pl-[9.75rem]">{row.highlight}</p>}
+      <div className="mt-1.5 flex items-center justify-between gap-2 pl-1 sm:pl-[9.75rem]">
+        {row.highlight ? <p className="text-xs text-gold">{row.highlight}</p> : <span />}
+        {/* The word's own page (rank history, full description, boost, real click/impression
+            stats) is the "details" this links to — no separate modal or duplicate content. */}
+        <Link
+          href={`/word/${row.normalized}`}
+          className="shrink-0 text-xs text-muted underline underline-offset-2 hover:text-text"
+        >
+          See details →
+        </Link>
+      </div>
     </li>
   );
 }
