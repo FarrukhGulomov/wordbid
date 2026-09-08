@@ -3,6 +3,7 @@ import { prisma } from './db';
 import { minimumBidCents } from './pricing';
 import { computeBidRank } from './bidrank';
 import { dayBucketOf } from './ownership-stats';
+import { displayLogoUrl } from './url';
 
 /**
  * Read models for the public surfaces.
@@ -77,7 +78,7 @@ export async function getLeaderboard(limit = 50, skip = 0): Promise<LeaderboardR
         clickCount: word.currentOwnership!.clickCount,
         ownerName: owner.name,
         ownerUrl: owner.url,
-        ownerLogoUrl: owner.logoUrl,
+        ownerLogoUrl: displayLogoUrl(owner.logoUrl),
         ownerDescription: owner.description,
         minimumBidCents: minimumBidCents(word.valueCents),
         bidRankScore: computeBidRank({ bidStrengthCents: word.valueCents }),

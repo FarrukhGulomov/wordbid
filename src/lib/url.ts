@@ -77,12 +77,40 @@ export function canonicalDomain(host: string): string {
   return host.toLowerCase().replace(/^www\./, '');
 }
 
-/** Best-effort favicon for a destination, via a public resolver. Never blocks a claim. */
+/**
+ * Best-effort favicon for a destination. Never blocks a claim.
+ *
+ * Site-relative on purpose: /api/logo fetches the icon from the public resolver server-side, so a
+ * visitor's browser never contacts that resolver and never discloses to it which brands they are
+ * looking at here. See src/app/api/logo/route.ts.
+ */
 export function faviconUrlFor(destination: string): string | null {
   try {
     const host = new URL(destination).hostname;
-    return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=64`;
+    return `/api/logo?domain=${encodeURIComponent(host)}`;
   } catch {
     return null;
   }
+}
+
+/**
+ * Renders a stored Owner.logoUrl as something safe to put in an <img src>.
+ *
+ * Rows written before the proxy existed hold the resolver's own absolute URL. Rewriting them here,
+ * at read time, closes the same leak for existing owners without a data migration — and keeps
+ * working if a row is ever written by an older deploy. Anything else is passed through untouched:
+ * only this one known third-party shape is redirected.
+ */
+export function displayLogoUrl(stored: string | null | undefined): string | null {
+  if (!stored) return null;
+  try {
+    const parsed = new URL(stored, 'https://placeholder.invalid');
+    if (parsed.hostname.endsWith('google.com') && parsed.pathname === '/s2/favicons') {
+      const domain = parsed.searchParams.get('domain');
+      return domain ? `/api/logo?domain=${encodeURIComponent(domain)}` : null;
+    }
+  } catch {
+    return stored;
+  }
+  return stored;
 }
