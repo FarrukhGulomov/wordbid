@@ -64,8 +64,9 @@ export class MockPaymentProvider implements PaymentProvider {
     return { kind: 'ignored', eventId: parsed.eventId };
   }
 
-  async refund(): Promise<void> {
+  async refund(): Promise<'succeeded'> {
     // No money actually moved, so there is nothing to return. The Payment row is still
     // marked REFUNDED so the buyer-facing copy and the admin view stay truthful.
+    return 'succeeded';
   }
 }

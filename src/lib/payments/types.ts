@@ -37,6 +37,15 @@ export interface PaymentProvider {
    * Throws when the signature is missing or invalid — the caller must reject with 400.
    */
   verifyWebhook(rawBody: string, headers: Headers): Promise<WebhookEvent>;
-  /** Returns money for a captured payment that did not win the word. */
-  refund(reference: string, amountCents: number): Promise<void>;
+  /**
+   * Returns money for a captured payment that did not win the word.
+   *
+   * Creating a refund at the provider is not the same as the money actually having moved —
+   * some providers (Stripe, for some payment methods) can accept a refund request and report it
+   * `pending`/`requires_action` rather than immediately `succeeded` — see F06. The caller must
+   * only treat the payment as REFUNDED once this resolves `'succeeded'`; `'pending'` means try
+   * again later (reconcileRefund's own retry loop is what does that), and a refund that will
+   * never complete must reject rather than resolve.
+   */
+  refund(reference: string, amountCents: number): Promise<'succeeded' | 'pending'>;
 }

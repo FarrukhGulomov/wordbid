@@ -9,6 +9,7 @@ import { adminActionSchema } from '@/lib/validation';
 import { rateLimit } from '@/lib/ratelimit';
 import { clientIpFrom } from '@/lib/clicks';
 import { reconcileRefund, reconcileAllPendingRefunds } from '@/lib/refunds';
+import { unblockWord } from '@/lib/moderation';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { robots: { index: false, follow: false } };
@@ -61,7 +62,9 @@ async function moderate(formData: FormData) {
   if (action === 'block_word') {
     await prisma.word.update({ where: { id }, data: { blocked: true } });
   } else if (action === 'unblock_word') {
-    await prisma.word.update({ where: { id }, data: { blocked: false } });
+    // F07: see src/lib/moderation.ts — refuses to reopen a word whose current owner is STILL
+    // blocked (e.g. one word of several held by a suspended brand — see block_owner below).
+    await unblockWord(id);
   } else if (action === 'block_owner') {
     // Suspending a brand also pulls every word it currently holds off the leaderboard.
     await prisma.$transaction(async (tx) => {

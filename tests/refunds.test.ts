@@ -72,6 +72,39 @@ describe('reconcileRefund', () => {
   });
 });
 
+// F09: reconcileRefund must ask the SAME provider that captured the payment, not whichever one
+// happens to be configured right now — an operator can migrate PAYMENT_PROVIDER after some
+// payments were already made under a different one.
+describe('reconcileRefund — F09: refunds route to the payment\'s OWN provider', () => {
+  it('never calls the currently-configured provider\'s refund for a payment made under a different one', async () => {
+    const { getPaymentProvider, getPaymentProviderByName } = await import('@/lib/payments');
+    // Current config is 'mock' (see .env.test) — spy on it to prove it is never touched below.
+    const currentSpy = vi.spyOn(getPaymentProvider(), 'refund');
+
+    const winner = await seedPendingPayment({ word: 'coding', brand: 'DevX', amountCents: 2000 });
+    const loser = await seedPendingPayment({ word: 'coding', brand: 'SlowCo', amountCents: 1500 });
+    await confirmPayment('mock', 'evt_win', winner.payment.providerReference, db);
+    await confirmPayment('mock', 'evt_lose', loser.payment.providerReference, db);
+
+    // Simulate a payment that was actually made under a DIFFERENT provider than the one
+    // currently configured (e.g. after an operator migration) — 'other' has no real
+    // implementation, so a call routed to it (correct) throws a distinct, recognisable error,
+    // while a call misrouted to the current 'mock' provider (the bug) would silently succeed.
+    await db.payment.update({ where: { id: loser.payment.id }, data: { provider: 'other' } });
+
+    const otherSpy = vi.spyOn(getPaymentProviderByName('mock'), 'refund');
+
+    const outcome = await reconcileRefund(loser.payment.id);
+    expect(outcome.outcome).toBe('failed');
+    if (outcome.outcome === 'failed') expect(outcome.error).toContain('Unknown payment provider "other"');
+    expect(currentSpy).not.toHaveBeenCalled();
+    expect(otherSpy).not.toHaveBeenCalled();
+
+    currentSpy.mockRestore();
+    otherSpy.mockRestore();
+  });
+});
+
 describe('reconcileAllPendingRefunds', () => {
   it('retries every stuck payment and leaves confirmed ones untouched', async () => {
     const winnerA = await seedPendingPayment({ word: 'ai', brand: 'AcmeAI', amountCents: 5000 });

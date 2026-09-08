@@ -163,7 +163,7 @@ export class NowPaymentsProvider implements PaymentProvider {
    * visible in /admin's "REFUNDS NEEDING ATTENTION" list for a human to resolve directly in the
    * NOWPayments dashboard — reconcileRefund already catches and reports exactly this case.
    */
-  async refund(): Promise<void> {
+  async refund(): Promise<'succeeded' | 'pending'> {
     throw new Error(
       'NOWPayments refunds require a buyer-supplied return address, which this integration does not collect. Refund manually in the NOWPayments dashboard.',
     );
