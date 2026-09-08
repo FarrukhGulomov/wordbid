@@ -71,6 +71,13 @@ export default function TermsPage() {
         We may remove any word, brand or link — including for illegal, deceptive or abusive content,
         or a destination that does not work. Removed placements are refunded.
       </p>
+
+      <h2 className="mt-8 font-mono text-sm font-bold tracking-widest text-text">REFUNDS</h2>
+      <p className="mt-2">
+        Refunds owed under this page are always issued in full. For a card payment this happens
+        automatically. For a cryptocurrency payment, an automatic refund is not always possible —
+        we process these manually to the original payment instead, which can take longer.
+      </p>
     </article>
   );
 }

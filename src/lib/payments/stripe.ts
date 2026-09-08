@@ -100,15 +100,30 @@ export class StripePaymentProvider implements PaymentProvider {
     }
   }
 
-  async refund(reference: string, amountCents: number): Promise<void> {
+  async refund(reference: string, amountCents: number): Promise<'succeeded' | 'pending'> {
     const session = await this.client.checkout.sessions.retrieve(reference);
     const paymentIntent =
       typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id;
     if (!paymentIntent) throw new Error(`No payment intent on Stripe session ${reference}`);
 
-    await this.client.refunds.create(
+    // The idempotency key means a retry (from reconcileRefund's own retry loop) returns this
+    // SAME refund object rather than creating a second one — which is exactly how a `pending`
+    // refund here gets re-checked later instead of being resubmitted.
+    const refund = await this.client.refunds.create(
       { payment_intent: paymentIntent, amount: amountCents },
       { idempotencyKey: `refund_${reference}` },
     );
+
+    // F06: creating a refund is not the same as the money having moved. Stripe can report a
+    // freshly created refund as `pending` or `requires_action` for some payment methods, and can
+    // later report `failed` for one that looked fine at creation — the old code discarded this
+    // return value entirely and the caller marked the payment REFUNDED unconditionally, which
+    // would tell a buyer "refunded in full" before Stripe had actually completed it, and would
+    // never notice (or retry) one that ultimately failed.
+    if (refund.status === 'succeeded') return 'succeeded';
+    if (refund.status === 'pending' || refund.status === 'requires_action' || refund.status === null) {
+      return 'pending';
+    }
+    throw new Error(`Stripe refund ${refund.id} for session ${reference} is ${refund.status}`);
   }
 }

@@ -9,6 +9,7 @@ import { adminActionSchema } from '@/lib/validation';
 import { rateLimit } from '@/lib/ratelimit';
 import { clientIpFrom } from '@/lib/clicks';
 import { reconcileRefund, reconcileAllPendingRefunds } from '@/lib/refunds';
+import { unblockWord } from '@/lib/moderation';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { robots: { index: false, follow: false } };
@@ -61,7 +62,9 @@ async function moderate(formData: FormData) {
   if (action === 'block_word') {
     await prisma.word.update({ where: { id }, data: { blocked: true } });
   } else if (action === 'unblock_word') {
-    await prisma.word.update({ where: { id }, data: { blocked: false } });
+    // F07: see src/lib/moderation.ts — refuses to reopen a word whose current owner is STILL
+    // blocked (e.g. one word of several held by a suspended brand — see block_owner below).
+    await unblockWord(id);
   } else if (action === 'block_owner') {
     // Suspending a brand also pulls every word it currently holds off the leaderboard.
     await prisma.$transaction(async (tx) => {
@@ -125,7 +128,7 @@ export default async function AdminPage() {
     );
   }
 
-  const [words, needsAttention, metrics] = await Promise.all([
+  const [words, needsAttention, unmatchedWebhooks, metrics] = await Promise.all([
     prisma.word.findMany({
       where: { currentOwnershipId: { not: null } },
       orderBy: { valueCents: 'desc' },
@@ -137,6 +140,14 @@ export default async function AdminPage() {
       orderBy: { createdAt: 'desc' },
       take: 50,
       include: { word: true, owner: true },
+    }),
+    // F02: a payment_succeeded event whose reference matched no Payment row — real money the
+    // provider says was captured, with nothing on our side to apply it to. See the webhook
+    // route's unknown_payment branch, which is what flags these.
+    prisma.webhookEvent.findMany({
+      where: { needsAttention: { not: null } },
+      orderBy: { receivedAt: 'desc' },
+      take: 50,
     }),
     getMetrics(),
   ]);
@@ -213,6 +224,30 @@ export default async function AdminPage() {
                     RETRY
                   </button>
                 </form>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {unmatchedWebhooks.length > 0 && (
+        <section className="mt-8">
+          <h2 className="mb-2 font-mono text-xs font-bold tracking-widest text-gold">
+            UNMATCHED PAYMENT EVENTS
+          </h2>
+          <p className="mb-2 text-xs text-muted">
+            The payment provider reported money captured for a reference we have no record of.
+            Look this reference up directly in your payment provider&rsquo;s dashboard — the
+            money is real, but there is no local Payment row to attach it to automatically.
+          </p>
+          <ul className="divide-y divide-line rounded border border-gold/40">
+            {unmatchedWebhooks.map((event) => (
+              <li key={event.id} className="flex flex-wrap items-center gap-2 px-3 py-2 text-sm">
+                <span className="min-w-0 flex-1 truncate">
+                  <span className="font-mono">{event.provider}</span> ·{' '}
+                  <span className="font-mono">{event.providerReference}</span> ·{' '}
+                  {event.receivedAt.toISOString()}
+                </span>
               </li>
             ))}
           </ul>

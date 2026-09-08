@@ -1,5 +1,5 @@
 import { prisma } from './db';
-import { getPaymentProvider } from './payments';
+import { getPaymentProviderByName } from './payments';
 
 /**
  * Refund reconciliation.
@@ -14,6 +14,9 @@ import { getPaymentProvider } from './payments';
 
 export type RefundResult =
   | { paymentId: string; outcome: 'refunded' }
+  // The provider accepted the refund but has not yet confirmed the money moved — see F06. The
+  // payment stays REFUND_PENDING and a later reconciliation run checks again.
+  | { paymentId: string; outcome: 'pending' }
   | { paymentId: string; outcome: 'skipped' }
   | { paymentId: string; outcome: 'failed'; error: string };
 
@@ -25,8 +28,14 @@ export async function reconcileRefund(paymentId: string): Promise<RefundResult> 
   }
 
   try {
-    const provider = getPaymentProvider();
-    await provider.refund(payment.providerReference, payment.amountCents);
+    // The SAME provider that captured this payment — never whichever one happens to be
+    // configured right now (see F09). An operator migrating PAYMENT_PROVIDER must not have
+    // older payments' refunds silently misrouted to a provider that has never heard of them.
+    const provider = getPaymentProviderByName(payment.provider);
+    const status = await provider.refund(payment.providerReference, payment.amountCents);
+    if (status === 'pending') {
+      return { paymentId, outcome: 'pending' };
+    }
     // Only flip to REFUNDED if it is still REFUND_PENDING — guards against a concurrent
     // reconciliation run doing the same work.
     await prisma.payment.updateMany({

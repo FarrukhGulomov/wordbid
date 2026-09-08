@@ -199,8 +199,16 @@ model WebhookEvent {
   /// Provider-side event id.
   eventId    String
   receivedAt DateTime @default(now())
+  /// Set only for a payment_succeeded event whose providerReference matched no Payment row (see
+  /// F02 in src/app/api/webhooks/payments/route.ts) — real money the provider says was captured,
+  /// with nothing on our side to apply it to. Null for every ordinary, matched event.
+  providerReference String?
+  /// Non-null only when this event needed a human's attention rather than a normal outcome —
+  /// currently only "unknown_payment". Surfaced in /admin; see F02.
+  needsAttention     String?
 
   @@unique([provider, eventId])
+  @@index([needsAttention])
 }
 
 /// One outbound click on an owner's link. `valid` false = deduped/bot, excluded from public counts.

@@ -48,7 +48,10 @@ const RANK_ORDER: Prisma.WordOrderByWithRelationInput[] = [
 /** The global leaderboard. Only words with a confirmed current owner appear. */
 export async function getLeaderboard(limit = 50, skip = 0): Promise<LeaderboardRow[]> {
   const words = await prisma.word.findMany({
-    where: { blocked: false, currentOwnershipId: { not: null } },
+    // F07: word.blocked alone is not enough — a word individually unblocked while its current
+    // owner is STILL blocked (e.g. one word of a suspended brand's several) must never resurface
+    // here. See src/app/admin/page.tsx's unblock_word guard, which is the other half of this fix.
+    where: { blocked: false, currentOwnershipId: { not: null }, currentOwnership: { owner: { blocked: false } } },
     orderBy: RANK_ORDER,
     take: limit,
     skip,
@@ -95,18 +98,23 @@ export async function getBoostCandidates(rank: number): Promise<LeaderboardRow[]
 }
 
 export async function countOwnedWords(): Promise<number> {
-  return prisma.word.count({ where: { blocked: false, currentOwnershipId: { not: null } } });
+  return prisma.word.count({
+    where: { blocked: false, currentOwnershipId: { not: null }, currentOwnership: { owner: { blocked: false } } },
+  });
 }
 
 /** 1-based global rank of an owned word, or null when the word is unowned. */
 export async function getRank(wordId: string): Promise<number | null> {
-  const word = await prisma.word.findUnique({ where: { id: wordId } });
-  if (!word || word.blocked || !word.currentOwnershipId || !word.ownedSince) return null;
+  const word = await prisma.word.findUnique({ where: { id: wordId }, include: { currentOwnership: { include: { owner: true } } } });
+  if (!word || word.blocked || !word.currentOwnershipId || !word.ownedSince || word.currentOwnership?.owner.blocked) {
+    return null;
+  }
 
   const above = await prisma.word.count({
     where: {
       blocked: false,
       currentOwnershipId: { not: null },
+      currentOwnership: { owner: { blocked: false } },
       OR: [
         { valueCents: { gt: word.valueCents } },
         { valueCents: word.valueCents, ownedSince: { lt: word.ownedSince } },
@@ -134,6 +142,7 @@ export async function getProjectedRank(amountCents: number, excludeWordId?: stri
     where: {
       blocked: false,
       currentOwnershipId: { not: null },
+      currentOwnership: { owner: { blocked: false } },
       ...(excludeWordId ? { id: { not: excludeWordId } } : {}),
       valueCents: { gte: amountCents },
     },
@@ -186,7 +195,9 @@ export async function getWordByNormalized(normalized: string) {
       },
     },
   });
-  if (!word || word.blocked) return null;
+  // F07: a blocked owner's placement must never render, even if this word's own `blocked` flag
+  // is (incorrectly) still false — see getLeaderboard's comment.
+  if (!word || word.blocked || word.currentOwnership?.owner.blocked) return null;
 
   const rank = await getRank(word.id);
 

@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach, afterAll } from 'vitest';
 import { confirmPayment } from '@/lib/ownership';
-import { getLeaderboard, getRank, getProjectedRank } from '@/lib/queries';
+import { getLeaderboard, getRank, getProjectedRank, getWordByNormalized } from '@/lib/queries';
 import { db, resetDb, seedPendingPayment } from './helpers';
 
 beforeEach(resetDb);
@@ -59,6 +59,25 @@ describe('global leaderboard', () => {
     expect(await getRank(word.id)).toBeNull();
   });
 
+  // F07: a word's own `blocked` flag can drift from its owner's — e.g. an admin unblocking one
+  // word of a suspended brand's several without noticing the brand itself is still blocked (see
+  // the guard this same finding adds in src/app/admin/page.tsx's unblock_word). The public
+  // surfaces must never trust word.blocked alone for that.
+  it('excludes a word whose owner is blocked, even if the word itself is not', async () => {
+    const word = await claim('spam', 'Spammer', 900000, 'e1');
+    await claim('clean', 'Good', 1000, 'e2');
+    // word.blocked stays false — only the OWNER is blocked, simulating the exact drift F07
+    // describes rather than the more obvious block_word path already covered above.
+    const owner = await db.owner.findFirstOrThrow({ where: { name: 'Spammer' } });
+    await db.owner.update({ where: { id: owner.id }, data: { blocked: true } });
+
+    const board = await getLeaderboard();
+    expect(board.map((r) => r.normalized)).toEqual(['clean']);
+    expect(await getRank(word.id)).toBeNull();
+    // Only 'clean' (1000) should count as real competition — the blocked owner's 900000 must not.
+    expect(await getProjectedRank(2000)).toBe(1);
+  });
+
   it('re-ranks immediately after a takeover', async () => {
     await claim('ai', 'AcmeAI', 100000, 'e1');
     const coding = await claim('coding', 'DevX', 50000, 'e2');
@@ -85,6 +104,16 @@ describe('global leaderboard', () => {
     expect(board[0]!.bidRankScore).toBe(482000);
     expect(board[1]!.bidRankScore).toBe(100000);
     expect(board[0]!.bidRankScore).toBeGreaterThan(board[1]!.bidRankScore);
+  });
+});
+
+describe('getWordByNormalized — F07', () => {
+  it('404s (returns null) for a word whose current owner is blocked, even if the word is not', async () => {
+    const word = await claim('spam', 'Spammer', 900000, 'e1');
+    const owner = await db.owner.findFirstOrThrow({ where: { name: 'Spammer' } });
+    await db.owner.update({ where: { id: owner.id }, data: { blocked: true } });
+
+    expect(await getWordByNormalized(word.normalized)).toBeNull();
   });
 });
 
