@@ -58,8 +58,16 @@ export function ClaimForm({ initialWord, isCrypto = false }: { initialWord: stri
         setAvailability(res.ok ? data : null);
         if (!res.ok) setError(data.error ?? null);
         else setError(null);
-      } catch {
-        // An aborted or failed lookup is not worth surfacing; the server revalidates anyway.
+      } catch (err) {
+        // A newer lookup superseded this one — its own state update is what should win here,
+        // not this one clearing it out from under it.
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+        // F11: any OTHER failure (network drop, server error) must not leave whatever
+        // `availability` happened to hold before this call — that could be a different word's
+        // data, or this word's price/owner from moments ago that has since changed. Showing it
+        // now would present stale ownership/price as current fact.
+        setAvailability(null);
+        setError('Could not check availability. Try again.');
       } finally {
         setChecking(false);
       }

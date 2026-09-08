@@ -55,16 +55,50 @@ export default async function CheckoutResultPage({
 
   const payment = await prisma.payment.findUnique({
     where: { id: paymentId },
-    include: { word: true, owner: true },
+    include: { word: true, owner: true, ownership: true },
   });
   if (!payment) notFound();
 
   const wordDisplay = payment.word.display.toUpperCase();
   const isBoost = payment.kind === 'BOOST';
+  const wordPath = `/word/${payment.word.normalized}`;
+
+  // F11: payment.status === 'CONFIRMED' only ever records that THIS payment won at the moment it
+  // confirmed — it never changes again after that, even once a later, unrelated takeover ends
+  // the ownership this payment created. Reloading this exact URL (a bookmark, a stale tab,
+  // PendingRefresh's own periodic refresh) after that happens must not keep proclaiming "YOU OWN
+  // X" to a buyer who has since been outbid — the ownership row this payment made is compared
+  // against the word's CURRENT one, live, on every render, rather than trusting a status flag
+  // that no longer reflects who holds the word right now.
+  if (payment.status === 'CONFIRMED' && !isBoost && payment.ownership?.id !== payment.word.currentOwnershipId) {
+    return (
+      <div className="py-16 text-center">
+        <p className="font-mono text-xs tracking-widest text-muted">TAKEN OVER SINCE</p>
+        <h1 className="mt-3 font-mono text-2xl font-black tracking-tight sm:text-3xl">
+          {wordDisplay} HAS A NEW OWNER
+        </h1>
+        <p className="mx-auto mt-4 max-w-md text-muted">
+          {payment.owner.name} held {wordDisplay} after this payment confirmed, but another brand
+          has since taken it over — that is always allowed, at any time, for anyone willing to pay
+          more.
+        </p>
+        <div className="mx-auto mt-8 flex max-w-sm flex-col gap-2">
+          <Link
+            href={`/claim?word=${encodeURIComponent(payment.word.normalized)}`}
+            className="rounded bg-gold px-4 py-2.5 font-mono text-sm font-bold text-ink transition hover:opacity-85"
+          >
+            TAKE IT BACK
+          </Link>
+          <Link href={wordPath} className="text-sm text-muted underline underline-offset-2">
+            See who owns it now
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   if (payment.status === 'CONFIRMED') {
     const rank = await getRank(payment.wordId);
-    const wordPath = `/word/${payment.word.normalized}`;
     // The canonical, absolute URL — this is what gets shared and copied, never the relative path.
     const canonicalUrl = `${config.siteUrl}${wordPath}`;
     // A first claim, a reclaim (this same brand had it before) and a takeover from a different

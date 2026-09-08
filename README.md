@@ -252,6 +252,13 @@ never a modal, matching WordBid's no-interstitial checkout everywhere else. It i
 verification: it does not check anyone's age, and does not replace whatever KYC or eligibility
 checks NOWPayments applies on its own hosted invoice page.
 
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every push to `main` and every pull request: `npm run lint`,
+`npm run typecheck`, the full test suite against a real disposable Postgres service container
+(same rules as **Tests** below — the database name must contain "test"), then `npm run build`.
+None of these were previously enforced anywhere except by a human remembering to run them by hand.
+
 ## Deploying
 
 ```bash
@@ -266,6 +273,22 @@ and safe to scale.
 
 Also schedule `npm run reconcile-refunds` every 10-15 minutes (cron, or your platform's scheduled
 jobs). See **Refunds** below for what it does and why it exists.
+
+### Backup & restore
+
+Everything that matters lives in Postgres — there is no other durable store. Use your hosting
+provider's managed Postgres backups if it has them (e.g. Railway's daily volume backups), or run
+your own on a schedule:
+
+```bash
+pg_dump "$DATABASE_URL" -Fc -f backup.dump   # back up
+pg_restore --clean --if-exists -d "$DATABASE_URL" backup.dump   # restore
+```
+
+Restoring rolls back every table together, including `Payment`/`Ownership`/`WebhookEvent` — do
+this only against a database nothing is currently writing to, and reconcile any payment webhooks
+the provider delivered after the backup's timestamp once it's back online (they will safely
+no-op if already applied, per the idempotency guards in **Payment correctness**).
 
 ## Metrics
 

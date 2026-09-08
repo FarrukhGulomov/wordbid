@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach, afterAll } from 'vitest';
 import { confirmPayment } from '@/lib/ownership';
-import { getLeaderboard, getRank, getProjectedRank } from '@/lib/queries';
+import { getLeaderboard, getRank, getProjectedRank, countOwnedWords } from '@/lib/queries';
 import { db, resetDb, seedPendingPayment } from './helpers';
 
 beforeEach(resetDb);
@@ -85,6 +85,28 @@ describe('global leaderboard', () => {
     expect(board[0]!.bidRankScore).toBe(482000);
     expect(board[1]!.bidRankScore).toBe(100000);
     expect(board[0]!.bidRankScore).toBeGreaterThan(board[1]!.bidRankScore);
+  });
+});
+
+// F15: the homepage Top view pages through getLeaderboard(limit, skip) using countOwnedWords()
+// for the total — this proves that pairing actually produces a correct, gap-free second page.
+describe('getLeaderboard pagination — F15', () => {
+  it('a second page (skip) picks up exactly where the first page left off, with correct ranks', async () => {
+    for (let i = 0; i < 5; i++) {
+      await claim(`word${i}`, `Brand${i}`, 1000 + i * 10, `e${i}`);
+    }
+    expect(await countOwnedWords()).toBe(5);
+
+    const page1 = await getLeaderboard(2, 0);
+    const page2 = await getLeaderboard(2, 2);
+    const page3 = await getLeaderboard(2, 4);
+
+    expect(page1.map((r) => r.rank)).toEqual([1, 2]);
+    expect(page2.map((r) => r.rank)).toEqual([3, 4]);
+    expect(page3.map((r) => r.rank)).toEqual([5]);
+
+    const allNormalized = [...page1, ...page2, ...page3].map((r) => r.normalized);
+    expect(new Set(allNormalized).size).toBe(5); // no duplicates, no gaps
   });
 });
 

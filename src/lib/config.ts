@@ -42,6 +42,11 @@ export const config = {
   get notificationProvider(): string {
     return process.env.NOTIFICATION_PROVIDER || 'console';
   },
+  /** Contact address shown on /privacy — undefined (never a fabricated placeholder) until an
+   * operator sets one. See F14. */
+  get supportEmail(): string | undefined {
+    return process.env.SUPPORT_EMAIL || undefined;
+  },
 } as const;
 
 export const SITE_NAME = 'WordBid';
