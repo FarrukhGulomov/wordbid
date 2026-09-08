@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-28 -22 312 139">
+  <rect x="-28" y="-22" width="312" height="139" fill="#08090b"></rect>
+  <circle cx="15" cy="19" r="4" fill="#f5c451"></circle>
+  <circle cx="31" cy="10" r="4" fill="#f5c451"></circle>
+  <circle cx="47" cy="19" r="4" fill="#f5c451"></circle>
+  <text x="0" y="76" font-family="ui-monospace,'SF Mono',Menlo,monospace" font-size="52" font-weight="800" letter-spacing="-1" fill="#f5c451">W</text>
+  <rect x="2" y="84" width="60" height="5" rx="2.5" fill="#f5c451"></rect>
+  <text x="74" y="76" font-family="ui-monospace,'SF Mono',Menlo,monospace" font-size="52" font-weight="800" letter-spacing="-1" fill="#f2f4f8">ORD<tspan fill="#f5c451">BID</tspan></text>
+</svg>
