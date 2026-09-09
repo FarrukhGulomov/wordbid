@@ -181,6 +181,24 @@ describe('POST /api/checkout — owner identity', () => {
     expect(owner.url).toBe('https://brandnew.example/');
   });
 
+  // CGPT-F04: a hand-typed description used to go straight onto the owner card unsanitized, so
+  // pasted markdown or raw HTML entities rendered exactly as typed. It now runs through the same
+  // cleanText normalization a fetched og:description already gets.
+  it('sanitizes a hand-typed description the same way a fetched one is sanitized', async () => {
+    await checkout({
+      word: 'ai',
+      brandName: 'Messy',
+      url: 'https://messy.example',
+      amountCents: 1000,
+      description: '**Bold**  claim &amp; <script>alert(1)</script> stuff',
+    });
+
+    const owner = await db.owner.findUniqueOrThrow({ where: { domain: 'messy.example' } });
+    // Markup is stripped (never rendered as markup), entities are decoded, and repeated
+    // whitespace left behind by stripping a tag collapses to one space.
+    expect(owner.description).toBe('**Bold** claim & alert(1) stuff');
+  });
+
   // Regression for the real sindr.uz bug: an Owner created by an earlier checkout whose metadata
   // fetch failed (a timeout, a redirect, or — before it was fixed — the attribute-order parser
   // bug) was left with description permanently null. Because an existing Owner is never
