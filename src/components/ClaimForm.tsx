@@ -1,9 +1,28 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { normalizeWord } from '@/lib/word';
 import { formatUsd, parseUsdToCents } from '@/lib/money';
 import { CryptoPaymentNotice } from '@/components/CryptoPaymentNotice';
+import { BrandLogo } from '@/components/BrandLogo';
+
+/**
+ * Best-effort, CLIENT-SIDE ONLY hostname guess for the live preview card below — never the
+ * source of truth. The real validation (SSRF checks, scheme rules, credential rejection) only
+ * ever happens server-side in validateDestinationUrl when the form is actually submitted; this
+ * is purely "what will this roughly look like", so a bad guess here can only ever make the
+ * preview blank, never affect what gets charged or stored.
+ */
+function previewDomain(rawUrl: string): string | null {
+  const raw = rawUrl.trim();
+  if (!raw) return null;
+  const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : `https://${raw}`;
+  try {
+    return new URL(withScheme).hostname.toLowerCase().replace(/^www\./, '') || null;
+  } catch {
+    return null;
+  }
+}
 
 type Availability = {
   normalized: string;
@@ -38,6 +57,7 @@ export function ClaimForm({ initialWord, isCrypto = false }: { initialWord: stri
 
   const normalized = normalizeWord(word);
   const amountCents = parseUsdToCents(amount);
+  const previewedDomain = useMemo(() => previewDomain(url), [url]);
 
   // Look up the live price — and, once a real amount is entered, the position it would rank at
   // today — whenever the word or the amount settles.
@@ -160,7 +180,11 @@ export function ClaimForm({ initialWord, isCrypto = false }: { initialWord: stri
           autoComplete="off"
           className="w-full rounded border border-line bg-surface px-3 py-2.5 font-mono text-lg uppercase placeholder:normal-case placeholder:text-muted focus:border-gold focus:outline-none"
         />
-        <div className="mt-1.5 min-h-5 text-xs">
+        {/* CGPT-F05: this status used to update with no aria-live region, so a screen reader user
+            typing a word never heard "owned by X, take it from $Y" once the debounced lookup
+            settled — only a sighted user saw it appear. role="status" + aria-live="polite"
+            announces it without interrupting whatever the user is doing. */}
+        <div className="mt-1.5 min-h-5 text-xs" role="status" aria-live="polite">
           {checking && <span className="text-muted">Checking…</span>}
           {!checking && availability?.owned && (
             <span className="text-muted">
@@ -239,6 +263,44 @@ export function ClaimForm({ initialWord, isCrypto = false }: { initialWord: stri
         </p>
       </div>
 
+      {/* CGPT-F04: without this, the first time a buyer saw their own name + domain + logo + description
+          together as they will actually appear on the board was AFTER paying — so a typo'd domain,
+          a favicon that doesn't match the brand, or an auto-pulled description that reads wrong all
+          went unnoticed until it was too late to fix cheaply. This mirrors the leaderboard card
+          exactly (BrandLogo included, with the same monogram fallback) and updates as they type. */}
+      {(brandName.trim() || previewedDomain) && (
+        <div className="rounded border border-line bg-surface p-3">
+          <p className="mb-2 font-mono text-xs font-bold tracking-widest text-muted">
+            HOW THIS WILL LOOK
+          </p>
+          <div className="flex items-center gap-3">
+            <BrandLogo
+              src={previewedDomain ? `/api/logo?domain=${encodeURIComponent(previewedDomain)}` : null}
+              name={brandName}
+              size={32}
+              className="rounded"
+            />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-bold text-text">
+                {brandName.trim() || 'Your brand name'}
+              </p>
+              <p className="truncate text-xs text-muted">
+                {previewedDomain ?? 'your-domain.com'}
+              </p>
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-muted">
+            {description.trim()
+              ? description.trim()
+              : 'No description typed — we will try to pull one from your site after you pay.'}
+          </p>
+          <p className="mt-2 text-xs text-muted">
+            Logo shown is your site&rsquo;s own favicon, detected automatically — not editable
+            here. Wrong logo or domain? Fix the link above before paying.
+          </p>
+        </div>
+      )}
+
       <div>
         <label
           htmlFor="amount"
@@ -258,11 +320,18 @@ export function ClaimForm({ initialWord, isCrypto = false }: { initialWord: stri
             placeholder="500"
             inputMode="decimal"
             required
+            // CGPT-F05: nothing here told assistive tech the field was invalid, or connected it to the
+            // "Minimum is $X" message below — a screen reader user heard neither the flagged state
+            // nor the reason, only a sighted user saw the gold text appear next to the field.
+            aria-invalid={amountTooLow || undefined}
+            aria-describedby={amountTooLow ? 'amount-error' : undefined}
             className="tnum w-full rounded border border-line bg-surface px-3 py-2.5 font-mono text-xl focus:border-gold focus:outline-none"
           />
         </div>
         {amountTooLow && minimum !== null && (
-          <p className="mt-1.5 text-xs text-gold">Minimum is {formatUsd(minimum)}.</p>
+          <p id="amount-error" role="alert" className="mt-1.5 text-xs text-gold">
+            Minimum is {formatUsd(minimum)}.
+          </p>
         )}
         {/* The live position this exact amount would hold today — never shown for an amount
             that wouldn't even win the word, so this can't be read as "pay less, still rank

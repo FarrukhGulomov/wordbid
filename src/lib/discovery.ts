@@ -39,6 +39,10 @@ const MIN_RISING_DELTA = 2;
 
 const HIDDEN_GEM_WINDOW_DAYS = 7;
 const MIN_HIDDEN_GEM_IMPRESSIONS = 20;
+// CGPT-F01: impressions alone used to be enough — a word with real reach but zero real clicks (CTR 0)
+// still passed and got labelled "Real engagement, modest spend", which is a contradiction in
+// terms. A gem is a word people actually engage with, not just one that got shown.
+const MIN_HIDDEN_GEM_CLICKS = 1;
 /** A word already this close to the top is visible by definition — not "hidden". */
 const HIDDEN_GEM_EXCLUDE_TOP_N = 3;
 
@@ -61,8 +65,16 @@ export function isRising(delta: number): boolean {
   return delta >= MIN_RISING_DELTA;
 }
 
-export function isHiddenGemEligible(signals: { rank: number; recentImpressions: number }): boolean {
-  return signals.rank > HIDDEN_GEM_EXCLUDE_TOP_N && signals.recentImpressions >= MIN_HIDDEN_GEM_IMPRESSIONS;
+export function isHiddenGemEligible(signals: {
+  rank: number;
+  recentImpressions: number;
+  recentClicks: number;
+}): boolean {
+  return (
+    signals.rank > HIDDEN_GEM_EXCLUDE_TOP_N &&
+    signals.recentImpressions >= MIN_HIDDEN_GEM_IMPRESSIONS &&
+    signals.recentClicks >= MIN_HIDDEN_GEM_CLICKS
+  );
 }
 
 /**
@@ -195,17 +207,30 @@ export async function getHiddenGems(limit = 10): Promise<LeaderboardRow[]> {
     .flatMap((row) => {
       const stats = engagement.get(row.wordId);
       if (!stats) return [];
-      if (!isHiddenGemEligible({ rank: row.rank, recentImpressions: stats.impressions })) return [];
+      if (
+        !isHiddenGemEligible({
+          rank: row.rank,
+          recentImpressions: stats.impressions,
+          recentClicks: stats.clicks,
+        })
+      )
+        return [];
       const score = hiddenGemScore({
         recentClicks: stats.clicks,
         recentImpressions: stats.impressions,
         valueCents: row.valueCents,
       });
-      return [{ row, score }];
+      return [{ row, score, stats }];
     })
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
-    .map(({ row }) => ({ ...row, highlight: '💎 Real engagement, modest spend' }));
+    // CGPT-F01: "Real engagement, modest spend" was shown identically whether a word earned 15 clicks
+    // or 0 — the same generic claim regardless of the evidence behind it. Naming the real
+    // clicks/impressions lets the visitor judge the claim instead of just trusting it.
+    .map(({ row, stats }) => ({
+      ...row,
+      highlight: `💎 ${formatCount(stats.clicks)} click${stats.clicks === 1 ? '' : 's'} on ${formatCount(stats.impressions)} views this week`,
+    }));
 }
 
 /** Most recently claimed — chronological, never gated by payment amount. */

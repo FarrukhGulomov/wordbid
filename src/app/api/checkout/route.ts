@@ -9,7 +9,7 @@ import { getPaymentProvider } from '@/lib/payments';
 import { rateLimit } from '@/lib/ratelimit';
 import { clientIpFrom } from '@/lib/clicks';
 import { formatUsd } from '@/lib/money';
-import { fetchSiteMetadata } from '@/lib/site-metadata';
+import { fetchSiteMetadata, cleanText } from '@/lib/site-metadata';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -49,6 +49,11 @@ export async function POST(request: Request) {
 
   const wordCheck = validateWord(input.word);
   if (!wordCheck.ok) return NextResponse.json({ error: wordCheck.error }, { status: 400 });
+
+  // CGPT-F04: a hand-typed description went straight onto the page unsanitized, so pasted markdown or
+  // stray HTML entities rendered as raw text on the owner card. It now runs through the exact
+  // same normalization an auto-fetched description already gets — see cleanText.
+  const cleanDescription = input.description ? cleanText(input.description, 160) : null;
 
   const urlCheck = validateDestinationUrl(input.url);
   if (!urlCheck.ok) return NextResponse.json({ error: urlCheck.error }, { status: 400 });
@@ -98,7 +103,7 @@ export async function POST(request: Request) {
   // for an existing owner that has never had one — e.g. its very first claim's fetch failed
   // (a timeout, a redirect, a since-fixed parser bug) and left description permanently null.
   // Skipped whenever a description is already on file, so a working one is never re-fetched.
-  const needsMetadata = !input.description && (!existingOwner || !existingOwner.description);
+  const needsMetadata = !cleanDescription && (!existingOwner || !existingOwner.description);
   const metadata = needsMetadata ? await fetchSiteMetadata(urlCheck.url) : null;
 
   // An unauthenticated checkout must never be able to overwrite an existing brand's identity —
@@ -110,7 +115,7 @@ export async function POST(request: Request) {
   // claim would have used had its fetch succeeded. An existing, already-set description is never
   // replaced, so this can never be used to overwrite one brand's story with another's.
   const backfillDescription =
-    existingOwner && !existingOwner.description ? input.description || metadata?.description || null : null;
+    existingOwner && !existingOwner.description ? cleanDescription || metadata?.description || null : null;
 
   const owner = await prisma.owner.upsert({
     where: { domain },
@@ -120,7 +125,7 @@ export async function POST(request: Request) {
       name: input.brandName,
       url: urlCheck.url,
       logoUrl: faviconUrlFor(urlCheck.url),
-      description: input.description || metadata?.description || null,
+      description: cleanDescription || metadata?.description || null,
     },
   });
 

@@ -28,8 +28,13 @@ export function LeaderboardRow({ row }: { row: Row }) {
     >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
         <div className="flex items-center gap-2 sm:w-36 sm:shrink-0">
+          {/* CGPT-F06: on Trending/Rising/Hidden Gems/New, rows are sorted by that view's own signal
+              (clicks, climb, CTR, recency) — never by this number. A bare "#9" next to a "👑 #1"
+              two rows down read as "list position" and contradicted the visible order. "RANK"
+              makes clear it is the word's GLOBAL paid-value rank, unrelated to where it sits in
+              this particular list. */}
           <span className={`tnum shrink-0 font-mono text-xs ${isTop ? 'text-gold' : 'text-muted'}`}>
-            {isTop ? '👑 #1' : `#${row.rank}`}
+            {isTop ? '👑 RANK #1' : `RANK #${row.rank}`}
           </span>
           {/* min-h-6 / min-w-0: WCAG 2.5.8 wants at least 24px of tappable height, and at
               text-xs this link was only 16px tall — the smallest target on the busiest screen. */}
@@ -63,7 +68,7 @@ export function LeaderboardRow({ row }: { row: Row }) {
               <p className="mt-0.5 line-clamp-1 text-xs text-muted">{row.ownerDescription}</p>
             )}
           </div>
-          <span className="hidden shrink-0 font-mono text-[10px] font-bold text-muted sm:block">
+          <span className="hidden shrink-0 font-mono text-xs font-bold text-muted sm:block">
             VISIT →
           </span>
         </a>
@@ -73,7 +78,7 @@ export function LeaderboardRow({ row }: { row: Row }) {
             column's right edge sawtoothed all the way down the page. */}
         <Link
           href={`/claim?word=${encodeURIComponent(row.normalized)}`}
-          className="w-full shrink-0 rounded border border-gold px-3 py-2 text-center font-mono text-[11px] font-bold text-gold transition hover:bg-gold hover:text-ink sm:w-40 sm:py-1.5"
+          className="w-full shrink-0 rounded border border-gold px-3 py-2 text-center font-mono text-xs font-bold text-gold transition hover:bg-gold hover:text-ink sm:w-40 sm:py-1.5"
         >
           TAKE FOR {formatUsd(row.minimumBidCents)}
         </Link>

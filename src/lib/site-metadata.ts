@@ -58,8 +58,16 @@ function stripHtml(text: string): string {
   return text.replace(/<[^>]*>/g, ' ');
 }
 
-/** Normalizes, strips markup, and bounds a candidate value. Empty/whitespace-only => null. */
-function clean(value: string | undefined, max: number): string | null {
+/**
+ * Normalizes, strips markup, and bounds a candidate value. Empty/whitespace-only => null.
+ *
+ * Exported as `cleanText` (not just used internally on fetched metadata) because the buyer's own
+ * hand-typed description goes through the same rules — see checkoutSchema's transform. Free text
+ * a buyer types is not HTML, but it can still carry stray `<`/`&` or raw entity sequences (pasted
+ * from somewhere else), and a page render already relies on this same normalization, so there is
+ * no reason a typed description should look rougher than a fetched one.
+ */
+export function cleanText(value: string | undefined, max: number): string | null {
   if (!value) return null;
   const text = stripHtml(decodeEntities(value)).replace(/\s+/g, ' ').trim();
   if (!text) return null;
@@ -113,8 +121,8 @@ export function parseSiteMetadata(html: string): SiteMetadata {
   const metaDescription = findMetaContent(html, 'name', 'description');
 
   return {
-    title: clean(ogTitle ?? titleTag, 60),
-    description: clean(ogDescription ?? metaDescription, 160),
+    title: cleanText(ogTitle ?? titleTag, 60),
+    description: cleanText(ogDescription ?? metaDescription, 160),
   };
 }
 
