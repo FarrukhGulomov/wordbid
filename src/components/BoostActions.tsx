@@ -19,46 +19,60 @@ type Target = { rank: number; targetValueCents: number };
  * The button leads with what gets paid (PAY $X), never the resulting total value — a $40
  * difference converts better and reads more honestly than a $50 headline number that hides how
  * much of it the word already had "banked" in its current value.
+ *
+ * CGPT-F02: a boost sits on the SAME page as TAKE FOR $X, and used to be one click away from a real
+ * charge with the beneficiary named only in a small paragraph above the button row — a rushed
+ * visitor could easily read "BOOST ABOVE #7 — PAY $33.46" as their own cheaper way to get the
+ * word, not as money spent on someone else's placement. Two changes fix that: the beneficiary's
+ * name is now IN the button itself, and clicking a target opens a one-line confirmation ("Boost
+ * {ownerName}'s placement — pay $X. {ownerName} keeps {word}. This does not make you the owner.")
+ * that must be confirmed separately before checkout ever starts.
  */
 export function BoostActions({
   word,
   currentRank,
   currentValueCents,
   targets,
+  ownerName,
   isCrypto = false,
 }: {
   word: string;
   currentRank: number;
   currentValueCents: number;
   targets: Target[];
+  ownerName: string;
   isCrypto?: boolean;
 }) {
-  const [pending, setPending] = useState<number | null>(null);
+  const [selected, setSelected] = useState<Target | null>(null);
+  const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (targets.length === 0) return null;
 
-  async function boost(targetValueCents: number) {
+  async function confirmBoost() {
+    if (!selected) return;
     setError(null);
-    setPending(targetValueCents);
+    setStarting(true);
     try {
       const res = await fetch('/api/boost', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ word, targetValueCents }),
+        body: JSON.stringify({ word, targetValueCents: selected.targetValueCents }),
       });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error ?? 'Could not start the boost. Nothing was charged.');
-        setPending(null);
+        setStarting(false);
         return;
       }
       window.location.href = data.redirectUrl;
     } catch {
       setError('Could not reach the server. Nothing was charged.');
-      setPending(null);
+      setStarting(false);
     }
   }
+
+  const selectedPayCents = selected ? selected.targetValueCents - currentValueCents : 0;
 
   return (
     <section id="boost" className="mt-6 scroll-mt-4">
@@ -66,34 +80,76 @@ export function BoostActions({
         BOOST {word.toUpperCase()}
       </h2>
       <p className="mb-3 text-xs text-muted">
-        Pay the difference to raise this word&rsquo;s value and rank. The current owner keeps the
-        word — this is not a takeover.
+        Pay the difference to raise {ownerName}&rsquo;s placement for this word. {ownerName} keeps
+        the word — this is not a takeover, and it never makes you the owner.
       </p>
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         {targets.map((t) => {
           const payCents = t.targetValueCents - currentValueCents;
+          const isSelected = selected?.rank === t.rank;
           return (
             <button
               key={t.rank}
               type="button"
-              disabled={pending !== null}
-              onClick={() => boost(t.targetValueCents)}
-              className="rounded border border-gold px-3 py-2 text-left font-mono text-gold transition hover:bg-gold hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
+              disabled={starting}
+              aria-pressed={isSelected}
+              onClick={() => {
+                setError(null);
+                setSelected(isSelected ? null : t);
+              }}
+              className={`rounded border px-3 py-2 text-left font-mono transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                isSelected
+                  ? 'border-gold bg-gold text-ink'
+                  : 'border-gold text-gold hover:bg-gold hover:text-ink'
+              }`}
             >
               <span className="block text-xs font-bold">
-                {pending === t.targetValueCents
-                  ? 'STARTING…'
-                  : t.rank === 1
-                    ? `BOOST TO #1 — PAY ${formatUsd(payCents)}`
-                    : `BOOST ABOVE #${t.rank} — PAY ${formatUsd(payCents)}`}
+                {t.rank === 1
+                  ? `BOOST ${ownerName.toUpperCase()} TO #1 — PAY ${formatUsd(payCents)}`
+                  : `BOOST ${ownerName.toUpperCase()} ABOVE #${t.rank} — PAY ${formatUsd(payCents)}`}
               </span>
-              <span className="mt-0.5 block text-[10px] font-normal opacity-70">
+              {/* CGPT-F11: this is the exact number backing the decision above it — what rank/value
+                  the boost actually buys — and it sat at 10px with opacity-70 stacked on top,
+                  well under the 12px floor and with reduced contrast on already-muted text. */}
+              <span className="mt-0.5 block text-xs font-normal">
                 #{currentRank} {formatUsd(currentValueCents)} → new value {formatUsd(t.targetValueCents)}
               </span>
             </button>
           );
         })}
       </div>
+
+      {selected && (
+        <div className="mt-3 rounded border border-gold/40 bg-gold/10 p-3 text-sm">
+          <p>
+            Confirm: pay <span className="font-bold text-gold">{formatUsd(selectedPayCents)}</span> to
+            boost <span className="font-bold text-text">{ownerName}</span>&rsquo;s placement for{' '}
+            {word.toUpperCase()}.{' '}
+            <span className="text-muted">
+              {ownerName} keeps the word. This does not make you the owner.
+            </span>
+          </p>
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              disabled={starting}
+              onClick={confirmBoost}
+              className="rounded bg-gold px-4 py-2 font-mono text-xs font-bold text-ink transition hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {starting ? 'STARTING…' : `CONFIRM — PAY ${formatUsd(selectedPayCents)}`}
+            </button>
+            <button
+              type="button"
+              disabled={starting}
+              onClick={() => setSelected(null)}
+              className="rounded border border-line px-4 py-2 font-mono text-xs font-bold text-muted transition hover:border-muted hover:text-text disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              CANCEL
+            </button>
+          </div>
+        </div>
+      )}
+
       {error && (
         <p
           role="alert"

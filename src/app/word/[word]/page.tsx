@@ -10,7 +10,7 @@ import { normalizeWord } from '@/lib/word';
 import { formatUsd, formatCount } from '@/lib/money';
 import { minimumBidCents, boostTargetFor } from '@/lib/pricing';
 import { config, SITE_NAME } from '@/lib/config';
-import { shortAgo } from '@/lib/time';
+import { shortAgo, shortDate } from '@/lib/time';
 import { displayLogoUrl } from '@/lib/url';
 import { BoostActions } from '@/components/BoostActions';
 
@@ -170,15 +170,23 @@ export default async function WordPage({ params }: Props) {
             </dd>
           </div>
           <div>
-            <dt className="font-mono text-xs text-muted">IMPRESSIONS</dt>
-            {/* Earned by the CURRENT owner only, same rule as clicks below — see performance. */}
+            {/* CGPT-F07: this number is scoped to the CURRENT owner only — a takeover always
+                restarts it at 0 — while Stats' "MOST CLICKED WORDS" shows the word's LIFETIME
+                total across every owner it has ever had. The same word can honestly show two
+                different-looking numbers for "clicks" on two pages; naming the scope and the
+                start date here (rather than just "CLICKS DELIVERED") is what makes that legible
+                instead of looking like two systems disagreeing about a fact. */}
+            <dt className="font-mono text-xs text-muted">
+              IMPRESSIONS <span className="normal-case text-muted/70">(this owner, since {shortDate(word.ownedSince!)})</span>
+            </dt>
             <dd className="tnum font-mono text-xl font-bold">
               {formatCount(performance?.impressions ?? 0)}
             </dd>
           </div>
           <div>
-            <dt className="font-mono text-xs text-muted">CLICKS DELIVERED</dt>
-            {/* Earned by the CURRENT owner only — a takeover always starts back at 0. */}
+            <dt className="font-mono text-xs text-muted">
+              CLICKS <span className="normal-case text-muted/70">(this owner, since {shortDate(word.ownedSince!)})</span>
+            </dt>
             <dd className="tnum font-mono text-xl font-bold">
               {formatCount(word.currentOwnership?.clickCount ?? 0)}
             </dd>
@@ -247,6 +255,7 @@ export default async function WordPage({ params }: Props) {
           currentRank={word.rank}
           currentValueCents={word.valueCents}
           targets={boostTargets}
+          ownerName={owner.name}
           isCrypto={config.isCryptoPayment}
         />
       )}
