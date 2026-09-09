@@ -79,8 +79,14 @@ export default async function StatsPage() {
 
       <section className="mt-10 grid gap-6 sm:grid-cols-2">
         <div>
+          {/* CGPT-F07: this number is Word.clickCount — a LIFETIME total across every owner a word
+              has ever had — while the word page's own "CLICKS DELIVERED" is scoped to the
+              CURRENT owner only (a takeover always restarts at 0 there). Shown side by side with
+              no distinction, the same word could carry two different-looking-but-unexplained
+              numbers for "clicks" depending which page you were on. Naming the scope here is the
+              fix; see the word page for the matching "(current owner, since …)" label. */}
           <h2 className="mb-2 font-mono text-xs font-bold tracking-widest text-muted">
-            MOST CLICKED WORDS
+            MOST CLICKED WORDS — ALL-TIME
           </h2>
           {mostClicked.length === 0 ? (
             <p className="text-sm text-muted">No clicks yet.</p>

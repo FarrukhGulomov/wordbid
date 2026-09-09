@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { cache } from 'react';
 import { prisma } from './db';
 
 /**
@@ -27,17 +28,25 @@ export function hourBucketOf(date: Date): Date {
   return new Date(ms - (ms % (60 * 60 * 1000)));
 }
 
-/** Distinct visitors active in the last 5 minutes. */
-export async function getOnlineCount(): Promise<number> {
+/**
+ * Distinct visitors active in the last 5 minutes.
+ *
+ * CGPT-F08: the root layout (header) and /stats each called this independently, moments apart in
+ * the same request — two real queries against a number that changes by the second, so the two
+ * counts could (and, per the audit, did) legitimately disagree on one screen. React's `cache()`
+ * memoizes this per SERVER request: every caller within the same render gets the exact same
+ * value, computed once, rather than each getting its own true-at-that-instant snapshot.
+ */
+export const getOnlineCount = cache(async (): Promise<number> => {
   return prisma.visitor.count({
     where: { lastSeenAt: { gte: new Date(Date.now() - ONLINE_WINDOW_MS) } },
   });
-}
+});
 
-/** Distinct real visitors ever seen. */
-export async function getTotalVisitors(): Promise<number> {
+/** Distinct real visitors ever seen. Memoized per request — see getOnlineCount. */
+export const getTotalVisitors = cache(async (): Promise<number> => {
   return prisma.visitor.count();
-}
+});
 
 export type HourlyVisitors = { hour: Date; count: number };
 
