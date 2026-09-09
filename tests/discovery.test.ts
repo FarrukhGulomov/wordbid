@@ -56,11 +56,13 @@ describe('attention engine — pure scoring', () => {
     expect(isRising(-3)).toBe(false); // fell — never "rising"
   });
 
-  it('hidden gem eligibility requires both distance from the top and a real sample size', () => {
-    expect(isHiddenGemEligible({ rank: 1, recentImpressions: 1000 })).toBe(false); // already visible
-    expect(isHiddenGemEligible({ rank: 3, recentImpressions: 1000 })).toBe(false);
-    expect(isHiddenGemEligible({ rank: 4, recentImpressions: 5 })).toBe(false); // too few impressions
-    expect(isHiddenGemEligible({ rank: 4, recentImpressions: 50 })).toBe(true);
+  it('hidden gem eligibility requires distance from the top, a real sample size, and a real click', () => {
+    expect(isHiddenGemEligible({ rank: 1, recentImpressions: 1000, recentClicks: 5 })).toBe(false); // already visible
+    expect(isHiddenGemEligible({ rank: 3, recentImpressions: 1000, recentClicks: 5 })).toBe(false);
+    expect(isHiddenGemEligible({ rank: 4, recentImpressions: 5, recentClicks: 5 })).toBe(false); // too few impressions
+    expect(isHiddenGemEligible({ rank: 4, recentImpressions: 50, recentClicks: 5 })).toBe(true);
+    // F01: reach without a single real click is not "engagement" — it used to qualify anyway.
+    expect(isHiddenGemEligible({ rank: 4, recentImpressions: 50, recentClicks: 0 })).toBe(false);
   });
 
   it('hidden gem score cannot be raised by paying more — only by real engagement', () => {
@@ -172,7 +174,19 @@ describe('getHiddenGems', () => {
 
     const gems = await getHiddenGems();
     expect(gems.map((r) => r.normalized)).toEqual(['coding']);
-    expect(gems[0]!.highlight).toMatch(/engagement/i);
+    // F01: the highlight now names the real numbers behind the claim, not a fixed slogan.
+    expect(gems[0]!.highlight).toMatch(/15 clicks on 30 views/i);
+  });
+
+  it('never recommends reach with zero real clicks as "engagement"', async () => {
+    await claim('a', 'A', 100_000, 'f1');
+    await claim('b', 'B', 90_000, 'f2');
+    await claim('c', 'C', 80_000, 'f3');
+    await claim('coding', 'DevX', 1000, 'e2'); // rank 4, plenty of reach
+    for (let i = 0; i < 30; i++) await recordImpressions(['coding']);
+
+    // 30 real impressions, 0 real clicks — CTR is 0, so this is not "engagement".
+    expect(await getHiddenGems()).toEqual([]);
   });
 
   it('never lets the #1 (or top 3) word qualify — it is already visible by definition', async () => {
