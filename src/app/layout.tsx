@@ -121,6 +121,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <Link href="/claim" className="inline-flex min-h-8 items-center underline underline-offset-2 hover:text-text">
                 Claim a word
               </Link>
+              {/* CGPT-F03: neither Terms nor Privacy was reachable from the footer's own link row
+                  without first reading either page — this is the one-click path to the same
+                  contact info both pages already give, from wherever the visitor happens to be. */}
+              <Link
+                href="/terms#contact"
+                className="inline-flex min-h-8 items-center underline underline-offset-2 hover:text-text"
+              >
+                Help
+              </Link>
             </p>
           </div>
         </footer>

@@ -78,6 +78,38 @@ export default function TermsPage() {
         automatically. For a cryptocurrency payment, an automatic refund is not always possible —
         we process these manually to the original payment instead, which can take longer.
       </p>
+
+      {/* CGPT-F03: this page told a crypto buyer their refund would be manual and "can take longer",
+          then gave no way to ask about one — no contact channel, no expected response time, no
+          pointer to the one thing they need to reference it (the confirmation page URL, which IS
+          the order record since there are no accounts). All three now live in one place. */}
+      <h2 id="contact" className="mt-8 scroll-mt-4 font-mono text-sm font-bold tracking-widest text-text">
+        GETTING HELP
+      </h2>
+      <p className="mt-2">
+        {config.supportEmail ? (
+          <>
+            For a refund that has not arrived, a manual crypto refund, or any other question about
+            a payment, email{' '}
+            <a
+              href={`mailto:${config.supportEmail}`}
+              className="inline-flex min-h-6 items-center align-middle underline underline-offset-2 hover:text-text"
+            >
+              {config.supportEmail}
+            </a>
+            . We reply within a few business days.
+          </>
+        ) : (
+          <>
+            For a refund that has not arrived, a manual crypto refund, or any other question about
+            a payment, contact whoever operates this deployment of {SITE_NAME}.
+          </>
+        )}{' '}
+        There are no accounts on {SITE_NAME}, so the confirmation link you were sent to after
+        paying (the page at <span className="text-text">/checkout/result?payment=…</span>) is your
+        only record of the order — include that link, or the payment ID in it, in any message you
+        send.
+      </p>
     </article>
   );
 }

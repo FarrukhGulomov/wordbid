@@ -40,6 +40,24 @@ async function setNotifyEmail(formData: FormData) {
 }
 
 /**
+ * CGPT-F03: support had no way to find an order without an account system — this page's own
+ * `payment.id` IS the order record. Printing it (plus the Help link that explains what to do
+ * with it) on the outcomes someone is actually likely to write in about — a confirmed purchase
+ * they need to reference later, or an outbid/refund they have a question about — means a support
+ * email can be answered without asking the buyer to dig a payment ID out of a URL bar.
+ */
+function OrderReference({ paymentId }: { paymentId: string }) {
+  return (
+    <p className="mx-auto mt-6 max-w-sm text-xs text-muted">
+      Order reference: <span className="font-mono text-text">{paymentId}</span> ·{' '}
+      <Link href="/terms#contact" className="underline underline-offset-2 hover:text-text">
+        Need help with this?
+      </Link>
+    </p>
+  );
+}
+
+/**
  * Where the buyer lands after paying.
  *
  * The provider's redirect is NOT proof of payment — only the webhook is. So this page reads
@@ -195,6 +213,7 @@ export default async function CheckoutResultPage({
             />
           </div>
         )}
+        <OrderReference paymentId={payment.id} />
       </div>
     );
   }
@@ -231,6 +250,7 @@ export default async function CheckoutResultPage({
             See the leaderboard
           </Link>
         </div>
+        <OrderReference paymentId={payment.id} />
       </div>
     );
   }
