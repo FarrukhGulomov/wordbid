@@ -115,6 +115,17 @@ export default async function HomePage({
         </p>
         <p className="text-xs text-muted">Every word has one owner. Until someone takes it.</p>
 
+        {/* CGPT-F09: the headline is written for a VISITOR ("see who's getting attention"), but
+            the box directly under it is the CLAIM flow — typing a word here and pressing CLAIM
+            starts a real checkout, not a search. Nothing on the page said so, and someone just
+            browsing could easily read this input as "look something up". This line states both
+            jobs explicitly and points each at what actually does that job: the board below for
+            browsing, this box only for claiming. */}
+        <p className="mt-2 text-xs text-muted">
+          <span className="text-text">Browsing?</span> Scroll down to explore the board.{' '}
+          <span className="text-text">Have a brand?</span> Claim a word below.
+        </p>
+
         <div className="mx-auto mt-3 max-w-md sm:mt-4">
           <WordSearch />
           <p className="mt-1.5 text-xs text-muted">
@@ -146,10 +157,14 @@ export default async function HomePage({
             className="flex gap-1 overflow-x-auto px-4 border-b border-line sm:px-0"
             aria-label="Discovery views"
           >
+            {/* CGPT-F05: the active tab was only marked by colour — a screen reader had no way to
+                tell which of the five views it was already on. aria-current="page" is the
+                standard signal for "this link is the current page/view within a nav". */}
             {TABS.map((t) => (
               <Link
                 key={t.key}
                 href={t.key === 'top' ? '/' : `/?tab=${t.key}`}
+                aria-current={tab === t.key ? 'page' : undefined}
                 className={`shrink-0 whitespace-nowrap border-b-2 px-3 py-2.5 font-mono text-xs font-bold tracking-widest transition ${
                   tab === t.key
                     ? 'border-gold text-gold'
@@ -198,6 +213,18 @@ export default async function HomePage({
                   CLAIM THE FIRST WORD
                 </Link>
               </>
+            )}
+            {/* CGPT-F10: Trending/Rising/Hidden Gems said "check back later" and stopped there —
+                a dead end with nothing else to do on the page. These three are the only views
+                that can honestly come up empty (not enough real activity yet), so each now
+                points somewhere with real content right now instead of asking for a return visit. */}
+            {(tab === 'trending' || tab === 'rising' || tab === 'gems') && (
+              <Link
+                href="/"
+                className="mt-5 inline-flex min-h-8 items-center text-sm text-muted underline underline-offset-2 hover:text-text"
+              >
+                See who&rsquo;s on top right now →
+              </Link>
             )}
           </div>
         ) : (
